@@ -144,6 +144,28 @@ func (f *asset) hasContentInMemory() bool {
 	return len(f.contentOpen) > 0 || len(f.contentMiddle) > 0 || len(f.contentClose) > 0
 }
 
+// === Implement devwatch.FilesEventHandlers interface ===
+
+// ShouldCompileToWasm checks if the file triggers WASM compilation.
+// AssetMin handles assets, not WASM, so always returns false.
+func (c *AssetMin) ShouldCompileToWasm(fileName, filePath string) bool {
+	return false
+}
+
+// MainInputFileRelativePath returns the main input file path.
+// AssetMin manages multiple assets, so returns empty.
+// Used by DevWatch for specific file watching logic.
+func (c *AssetMin) MainInputFileRelativePath() string {
+	return ""
+}
+
+// MainOutputFileAbsolutePath returns the main output file path.
+// AssetMin manages multiple outputs, so returns empty.
+// Used by DevWatch for exclusion logic (handled by UnobservedFiles instead)
+func (c *AssetMin) MainOutputFileAbsolutePath() string {
+	return ""
+}
+
 // isOutputPath checks if the given file path matches any of our output paths
 func (c *AssetMin) isOutputPath(filePath string) bool {
 	// Normalize paths for cross-platform comparison
