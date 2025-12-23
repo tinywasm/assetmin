@@ -77,13 +77,13 @@ func TestRegisterRoutes(t *testing.T) {
 	})
 }
 
-func TestWorkModes(t *testing.T) {
-	t.Run("MemoryMode does not write to disk", func(t *testing.T) {
+func TestWorks(t *testing.T) {
+	t.Run("false does not write to disk", func(t *testing.T) {
 		setup := newTestSetup(t)
 		defer setup.cleanup()
 
 		am := NewAssetMin(setup.config)
-		am.SetWorkMode(MemoryMode)
+		am.SetBuildOnDisk(false)
 
 		err := am.NewFileEvent("test.css", ".css", setup.createTempFile("test.css", "body{color:red}"), "create")
 		assert.NoError(t, err)
@@ -93,12 +93,12 @@ func TestWorkModes(t *testing.T) {
 		assert.True(t, os.IsNotExist(err))
 	})
 
-	t.Run("DiskMode writes to disk", func(t *testing.T) {
+	t.Run("true writes to disk", func(t *testing.T) {
 		setup := newTestSetup(t)
 		defer setup.cleanup()
 
 		am := NewAssetMin(setup.config)
-		am.SetWorkMode(DiskMode)
+		am.SetBuildOnDisk(true)
 
 		err := am.NewFileEvent("test.css", ".css", setup.createTempFile("test.css", "body{color:red}"), "create")
 		assert.NoError(t, err)

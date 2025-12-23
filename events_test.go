@@ -18,7 +18,7 @@ import (
 func TestOutputFileHandling(t *testing.T) {
 	t.Run("uc00_output_file_handling", func(t *testing.T) {
 		env := setupTestEnv("uc00_output_file_handling", t)
-		env.AssetsHandler.SetWorkMode(DiskMode)
+		env.AssetsHandler.SetBuildOnDisk(true)
 		env.CreatePublicDir() // Ensure public directory exists
 
 		// Desactivar el código de inicialización durante esta prueba para evitar conflictos

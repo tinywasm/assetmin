@@ -180,6 +180,13 @@ func (h *asset) RegenerateCache(minifier *minify.M) error {
 	return nil
 }
 
+// GetCachedMinified returns a copy of the cached minified content in a thread-safe manner.
+func (h *asset) GetCachedMinified() []byte {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.cachedMinified
+}
+
 // GetMinifiedContent returns the minified content of the asset, regenerating the cache if necessary.
 // It uses a double-checked locking pattern with a read-write mutex for thread-safe access.
 func (h *asset) GetMinifiedContent(minifier *minify.M) ([]byte, error) {

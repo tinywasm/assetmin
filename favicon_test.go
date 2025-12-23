@@ -14,7 +14,7 @@ import (
 func TestFaviconProcessing(t *testing.T) {
 	t.Run("favicon_svg_processed_to_output", func(t *testing.T) {
 		env := setupTestEnv("favicon_svg_processed", t)
-		env.AssetsHandler.SetWorkMode(DiskMode)
+		env.AssetsHandler.SetBuildOnDisk(true)
 		env.CreatePublicDir()
 
 		// Create favicon.svg in theme folder
@@ -49,7 +49,7 @@ func TestFaviconProcessing(t *testing.T) {
 
 	t.Run("favicon_separate_from_sprite_icons", func(t *testing.T) {
 		env := setupTestEnv("favicon_separate_sprite", t)
-		env.AssetsHandler.SetWorkMode(DiskMode)
+		env.AssetsHandler.SetBuildOnDisk(true)
 		env.CreatePublicDir()
 
 		// Create both favicon and sprite icon
@@ -106,7 +106,7 @@ func TestFaviconProcessing(t *testing.T) {
 
 	t.Run("favicon_update_event", func(t *testing.T) {
 		env := setupTestEnv("favicon_update", t)
-		env.AssetsHandler.SetWorkMode(DiskMode)
+		env.AssetsHandler.SetBuildOnDisk(true)
 		env.CreatePublicDir()
 
 		// Create initial favicon
@@ -140,7 +140,7 @@ func TestFaviconProcessing(t *testing.T) {
 
 	t.Run("favicon_delete_event", func(t *testing.T) {
 		env := setupTestEnv("favicon_delete", t)
-		env.AssetsHandler.SetWorkMode(DiskMode)
+		env.AssetsHandler.SetBuildOnDisk(true)
 		env.CreatePublicDir()
 
 		// Create favicon

@@ -49,7 +49,7 @@ WebAssembly.instantiateStreaming(fetch("main.wasm"), minimalRuntime.importObject
 
 	// Setup test environment with mock TinyWasm handler
 	env := setupTestEnv("refresh_asset", t, mockTinyWasmHandler)
-	env.AssetsHandler.SetWorkMode(DiskMode)
+	env.AssetsHandler.SetBuildOnDisk(true)
 	defer env.CleanDirectory()
 
 	// Prepare JS files in different directories to simulate a real project
@@ -146,7 +146,7 @@ WebAssembly.instantiateStreaming(fetch("main.wasm"), minimalRuntime.importObject
 // TestRefreshAssetCSS verifies that RefreshAsset works for CSS files
 func TestRefreshAssetCSS(t *testing.T) {
 	env := setupTestEnv("refresh_asset_css", t)
-	env.AssetsHandler.SetWorkMode(DiskMode)
+	env.AssetsHandler.SetBuildOnDisk(true)
 	defer env.CleanDirectory()
 
 	// Create CSS files
@@ -189,13 +189,13 @@ func TestRefreshAssetCSS(t *testing.T) {
 	t.Log("✓ RefreshAsset works correctly for CSS files")
 }
 
-// TestRefreshAssetDiskMode verifies that RefreshAsset works correctly in DiskMode.
-func TestRefreshAssetDiskMode(t *testing.T) {
+// TestRefreshAssettrue verifies that RefreshAsset works correctly in true.
+func TestRefreshAssettrue(t *testing.T) {
 	env := setupTestEnv("refresh_asset_disk_mode", t)
 	defer env.CleanDirectory()
 
-	// Set DiskMode
-	env.AssetsHandler.SetWorkMode(DiskMode)
+	// Set true
+	env.AssetsHandler.SetBuildOnDisk(true)
 
 	// Create a JS file
 	filePath := filepath.Join(env.BaseDir, "modules", "test.js")
@@ -215,7 +215,7 @@ func TestRefreshAssetDiskMode(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(content), "test", "script.js should contain the test file content")
 
-	t.Log("✓ RefreshAsset works correctly in DiskMode")
+	t.Log("✓ RefreshAsset works correctly in true")
 }
 
 // TestRefreshAssetRebuildsInitCode verifies that RefreshAsset re-fetches
@@ -229,7 +229,7 @@ func TestRefreshAssetRebuildsInitCode(t *testing.T) {
 	}
 
 	env := setupTestEnv("refresh_asset_init_code", t, mockInitializer)
-	env.AssetsHandler.SetWorkMode(DiskMode)
+	env.AssetsHandler.SetBuildOnDisk(true)
 	defer env.CleanDirectory()
 
 	// Create a simple JS file
@@ -244,26 +244,26 @@ func TestRefreshAssetRebuildsInitCode(t *testing.T) {
 	require.NoError(t, err)
 	initialStr := string(initialContent)
 
-	// Should contain version 1 of init code (after 'use strict' is added by startCodeJS)
-	require.Contains(t, initialStr, "initVersion1",
-		"Initial compilation should include first version of init code")
-	require.Equal(t, 1, callCount, "Should have called mockInitializer once during initial compilation")
+	// Should contain version 2 of init code (version 1 was consumed by SetBuildOnDisk)
+	require.Contains(t, initialStr, "initVersion2",
+		"Initial compilation should include second version of init code (first consumed by SetBuildOnDisk)")
+	require.Equal(t, 2, callCount, "Should have called mockInitializer twice (once for disk enable, once for file event)")
 
 	// Call RefreshAsset - this should trigger another call to GetRuntimeInitializerJS
 	env.AssetsHandler.RefreshAsset(".js")
 
 	// Verify that GetRuntimeInitializerJS was called again
-	require.Equal(t, 2, callCount, "RefreshAsset should have called mockInitializer again")
+	require.Equal(t, 3, callCount, "RefreshAsset should have called mockInitializer again")
 
 	// Verify new content is included
 	refreshedContent, err := os.ReadFile(env.MainJsPath)
 	require.NoError(t, err)
 	refreshedStr := string(refreshedContent)
 
-	require.Contains(t, refreshedStr, "initVersion2",
-		"After RefreshAsset, should include second version of init code")
-	require.NotContains(t, refreshedStr, "initVersion1",
-		"After RefreshAsset, should NOT include first version")
+	require.Contains(t, refreshedStr, "initVersion3",
+		"After RefreshAsset, should include third version of init code")
+	require.NotContains(t, refreshedStr, "initVersion2",
+		"After RefreshAsset, should NOT include previous version")
 
 	// Verify user content is still there
 	require.Contains(t, refreshedStr, "app", "User JS content should be preserved")
@@ -283,7 +283,7 @@ func TestRefreshAssetMultipleFiles(t *testing.T) {
 	}
 
 	env := setupTestEnv("refresh_asset_multiple", t, mockHandler)
-	env.AssetsHandler.SetWorkMode(DiskMode)
+	env.AssetsHandler.SetBuildOnDisk(true)
 	defer env.CleanDirectory()
 
 	// Create multiple JS files in different locations

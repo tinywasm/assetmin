@@ -13,13 +13,6 @@ import (
 	"github.com/tdewolff/minify/v2/svg"
 )
 
-type WorkMode int
-
-const (
-	MemoryMode WorkMode = iota // Serve from memory cache (default)
-	DiskMode                   // Write to disk + serve from cache
-)
-
 type AssetMin struct {
 	mu sync.Mutex // Added mutex for synchronization
 	*Config
@@ -29,7 +22,7 @@ type AssetMin struct {
 	faviconSvgHandler   *asset
 	indexHtmlHandler    *asset
 	min                 *minify.M
-	workMode            WorkMode // Current work mode
+	buildOnDisk         bool // Build assets to disk if true
 }
 
 type Config struct {
@@ -130,16 +123,30 @@ func (c *AssetMin) RefreshAsset(extension string) {
 	}
 }
 
-// SetWorkMode sets the work mode for AssetMin.
-func (c *AssetMin) SetWorkMode(mode WorkMode) {
+// SetBuildOnDisk sets the work mode for AssetMin.
+func (c *AssetMin) SetBuildOnDisk(onDisk bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.workMode = mode
+	c.buildOnDisk = onDisk
+
+	if c.Logger != nil {
+		c.Logger("SetBuildOnDisk:", onDisk)
+	}
+
+	if onDisk {
+		// Ensure all assets are updated on disk immediately
+		c.processAsset(c.mainStyleCssHandler)
+		c.processAsset(c.mainJsHandler)
+		c.processAsset(c.spriteSvgHandler)
+		c.processAsset(c.faviconSvgHandler)
+		c.processAsset(c.indexHtmlHandler)
+	}
 }
 
-// GetWorkMode returns the current work mode of AssetMin.
-func (c *AssetMin) GetWorkMode() WorkMode {
+// BuildOnDisk returns true if assets are written to disk.
+func (c *AssetMin) BuildOnDisk() bool {
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.workMode
+	return c.buildOnDisk
 }

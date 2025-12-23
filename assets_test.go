@@ -15,7 +15,7 @@ func TestAssetScenario(t *testing.T) {
 		// si el archivo no existe se considerara un error, la libreria debe ser capas de crear el directorio de trabajo web/public
 
 		env := setupTestEnv("uc01_empty_directory", t)
-		env.AssetsHandler.SetWorkMode(DiskMode)
+		env.AssetsHandler.SetBuildOnDisk(true)
 		// 1. Create JS file and verify output
 		jsFileName := "script1.js"
 		jsFilePath := filepath.Join(env.BaseDir, jsFileName)
@@ -43,7 +43,7 @@ func TestAssetScenario(t *testing.T) {
 		// Se espera que el contenido se actualice correctamente (sin duplicados) y
 		// que el contenido sea eliminado cuando se elimina el archivo
 		env := setupTestEnv("uc02_crud_operations", t)
-		env.AssetsHandler.SetWorkMode(DiskMode)
+		env.AssetsHandler.SetBuildOnDisk(true)
 		// Probar operaciones CRUD para archivos JS
 		t.Run("js_file", func(t *testing.T) {
 			env.TestFileCRUDOperations(".js")
@@ -62,7 +62,7 @@ func TestAssetScenario(t *testing.T) {
 		// archivos JS son escritos simultáneamente
 		// Se espera que todos los contenidos se encuentren en web/public/main.js
 		env := setupTestEnv("uc03_concurrent_writes", t)
-		env.AssetsHandler.SetWorkMode(DiskMode)
+		env.AssetsHandler.SetBuildOnDisk(true)
 		env.TestConcurrentFileProcessing(".js", 5)
 		env.CleanDirectory()
 	})
@@ -72,7 +72,7 @@ func TestAssetScenario(t *testing.T) {
 		// archivos CSS son escritos simultáneamente
 		// Se espera que todos los contenidos se encuentren en web/public/main.css
 		env := setupTestEnv("uc04_concurrent_writes_css", t)
-		env.AssetsHandler.SetWorkMode(DiskMode)
+		env.AssetsHandler.SetBuildOnDisk(true)
 		env.TestConcurrentFileProcessing(".css", 5)
 		env.CleanDirectory()
 	})
@@ -96,21 +96,21 @@ func (env *TestEnvironment) TestEventBasedCompilation(fileExtension string) {
 	filePath := filepath.Join(env.BaseDir, fileName)
 	require.NoError(env.t, os.WriteFile(filePath, []byte(fileContent), 0644))
 
-	// --- MemoryMode Behavior ---
-	env.AssetsHandler.SetWorkMode(MemoryMode)
+	// --- false Behavior ---
+	env.AssetsHandler.SetBuildOnDisk(false)
 	require.NoError(env.t, env.AssetsHandler.NewFileEvent(fileName, fileExtension, filePath, "create"))
 
-	// Verify file is NOT written to disk in MemoryMode
+	// Verify file is NOT written to disk in false
 	_, err := os.Stat(mainPath)
-	require.True(env.t, os.IsNotExist(err), "File should not be written in MemoryMode")
+	require.True(env.t, os.IsNotExist(err), "File should not be written in false")
 
-	// --- DiskMode Behavior ---
-	env.AssetsHandler.SetWorkMode(DiskMode)
+	// --- true Behavior ---
+	env.AssetsHandler.SetBuildOnDisk(true)
 	require.NoError(env.t, env.AssetsHandler.NewFileEvent(fileName, fileExtension, filePath, "write"))
 
-	// Verify file IS written to disk in DiskMode
-	require.FileExists(env.t, mainPath, "File should be written in DiskMode")
+	// Verify file IS written to disk in true
+	require.FileExists(env.t, mainPath, "File should be written in true")
 	content, err := os.ReadFile(mainPath)
 	require.NoError(env.t, err)
-	require.Contains(env.t, string(content), expectedContent, "File content mismatch in DiskMode")
+	require.Contains(env.t, string(content), expectedContent, "File content mismatch in true")
 }

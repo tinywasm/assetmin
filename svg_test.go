@@ -16,7 +16,7 @@ import (
 func TestSvgSpriteGeneration(t *testing.T) {
 	t.Run("uc07_svg_sprite_creation", func(t *testing.T) {
 		env := setupTestEnv("uc07_svg_sprite_creation", t)
-		env.AssetsHandler.SetWorkMode(DiskMode)
+		env.AssetsHandler.SetBuildOnDisk(true)
 		env.CreatePublicDir() // Ensure public directory exists
 
 		// Create a test directory for svg icons
@@ -69,7 +69,7 @@ func TestSvgSpriteGeneration(t *testing.T) {
 func TestSvgSpriteStructure(t *testing.T) {
 	t.Run("uc08_svg_sprite_structure", func(t *testing.T) {
 		env := setupTestEnv("uc08_svg_sprite_structure", t)
-		env.AssetsHandler.SetWorkMode(DiskMode)
+		env.AssetsHandler.SetBuildOnDisk(true)
 		env.CreatePublicDir()
 
 		// Access the SVG handler directly

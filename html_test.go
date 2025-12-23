@@ -37,7 +37,7 @@ func TestHtmlModulesIntegration(t *testing.T) {
 		// principal. En este caso, el archivo index.html no existe y se espera que se genere uno por defecto
 
 		env := setupTestEnv("uc09_html_modules_integration_without_index", t)
-		env.AssetsHandler.SetWorkMode(DiskMode)
+		env.AssetsHandler.SetBuildOnDisk(true)
 		// Crear un directorio de prueba para módulos HTML
 		env.CreateModulesDir()
 
@@ -90,7 +90,7 @@ func TestHtmlModulesIntegration(t *testing.T) {
 		// como un módulo HTML sino que debe ser ignorado para evitar duplicación de contenido
 
 		env := setupTestEnv("uc11_html_template_should_be_ignored", t)
-		env.AssetsHandler.SetWorkMode(DiskMode)
+		env.AssetsHandler.SetBuildOnDisk(true)
 		// Crear un directorio de prueba para módulos HTML
 		env.CreateModulesDir()
 

@@ -98,9 +98,9 @@ func (c *AssetMin) processAsset(fh *asset) error {
 		return err
 	}
 
-	// 2. Write to disk only if DiskMode
-	if c.workMode == DiskMode {
-		return FileWrite(fh.outputPath, *bytes.NewBuffer(fh.cachedMinified))
+	// 2. Write to disk only if enabled
+	if c.buildOnDisk {
+		return FileWrite(fh.outputPath, *bytes.NewBuffer(fh.GetCachedMinified()))
 	}
 	return nil
 }
