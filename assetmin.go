@@ -23,11 +23,11 @@ type AssetMin struct {
 	indexHtmlHandler    *asset
 	min                 *minify.M
 	buildOnDisk         bool // Build assets to disk if true
+	log                 func(message ...any)
 }
 
 type Config struct {
 	OutputDir               string                 // eg: web/static, web/public, web/assets
-	Logger                  func(message ...any)   // Renamed from io.Writer to a function type
 	GetRuntimeInitializerJS func() (string, error) // javascript code to initialize the wasm or other handlers
 	AppName                 string                 // Application name for templates (default: "MyApp")
 	AssetsURLPrefix         string                 // New: for HTTP routes
@@ -78,14 +78,26 @@ func NewAssetMin(ac *Config) *AssetMin {
 	return c
 }
 
+func (c *AssetMin) Name() string {
+	return "ASSETS"
+}
+
+func (c *AssetMin) SetLog(f func(message ...any)) {
+	c.log = f
+}
+
+func (c *AssetMin) Logger(messages ...any) {
+	if c.log != nil {
+		c.log(messages...)
+	}
+}
+
 func (c *AssetMin) SupportedExtensions() []string {
 	return []string{".js", ".css", ".svg", ".html"}
 }
 
 func (c *AssetMin) writeMessage(messages ...any) {
-	if c.Logger != nil {
-		c.Logger(messages...)
-	}
+	c.Logger(messages...)
 }
 
 func fileExists(path string) string {
@@ -129,9 +141,7 @@ func (c *AssetMin) SetBuildOnDisk(onDisk bool) {
 	defer c.mu.Unlock()
 	c.buildOnDisk = onDisk
 
-	if c.Logger != nil {
-		c.Logger("SetBuildOnDisk:", onDisk)
-	}
+	c.Logger("SetBuildOnDisk:", onDisk)
 
 	if onDisk {
 		// Ensure all assets are updated on disk immediately

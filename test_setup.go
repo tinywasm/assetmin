@@ -53,9 +53,6 @@ func setupTestEnv(testCase string, t *testing.T, objects ...any) *TestEnvironmen
 	// Create asset configuration with logging using t.Log
 	config := &Config{
 		OutputDir: publicDir,
-		Logger: func(message ...any) {
-			t.Log(message...)
-		},
 		GetRuntimeInitializerJS: func() (string, error) {
 			return "", nil
 		},
@@ -83,6 +80,9 @@ func setupTestEnv(testCase string, t *testing.T, objects ...any) *TestEnvironmen
 	// Create asset handler; do NOT force WriteOnDisk here.
 	// The library should detect existing output files and enable writing itself.
 	assetsHandler := NewAssetMin(config)
+	assetsHandler.SetLog(func(message ...any) {
+		t.Log(message...)
+	})
 
 	// Create only the base directory if it doesn't exist
 	err := os.MkdirAll(baseDir, 0755)

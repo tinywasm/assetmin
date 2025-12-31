@@ -20,9 +20,6 @@ func newTestSetup(t *testing.T) *testSetup {
 
 	config := &Config{
 		OutputDir: outputDir,
-		Logger: func(message ...any) {
-			t.Log(message...)
-		},
 		GetRuntimeInitializerJS: func() (string, error) {
 			return "", nil
 		},
