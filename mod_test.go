@@ -26,7 +26,9 @@ require ` + PackageName + ` v0.0.1
 			t.Fatal(err)
 		}
 
-		if !m.IsAssetMinUsedInThisPkg() {
+		m.SetRootPath(tmpDir)
+
+		if !m.IsUsed() {
 			t.Errorf("expected true, got false")
 		}
 	})
@@ -41,14 +43,17 @@ require github.com/some/otherpkg v1.0.0
 			t.Fatal(err)
 		}
 
-		if m.IsAssetMinUsedInThisPkg() {
+		m.SetRootPath(tmpDir)
+
+		if m.IsUsed() {
 			t.Errorf("expected false, got true")
 		}
 	})
 
 	t.Run("no go.mod file", func(t *testing.T) {
 		os.Remove(filepath.Join(tmpDir, "go.mod"))
-		if m.IsAssetMinUsedInThisPkg() {
+		m.SetRootPath(tmpDir) // Refresh state
+		if m.IsUsed() {
 			t.Errorf("expected false, got true")
 		}
 	})

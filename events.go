@@ -81,6 +81,11 @@ func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) err
 		}
 	}
 
+	if extension == ".mod" {
+		c.goModHandler.NewFileEvent(filePath, c.writeMessage)
+		return nil
+	}
+
 	fh, err := c.UpdateFileContentInMemory(filePath, extension, event, content) // Update contentMiddle
 	if err != nil {
 		return errors.New(e + err.Error())
@@ -138,13 +143,6 @@ func (f *asset) ClearMemoryFiles() {
 	f.contentMiddle = []*contentFile{}
 	f.contentClose = []*contentFile{}
 }
-
-// hasContentInMemory checks if the asset has any content stored in memory
-func (f *asset) hasContentInMemory() bool {
-	return len(f.contentOpen) > 0 || len(f.contentMiddle) > 0 || len(f.contentClose) > 0
-}
-
-// === Implement devwatch.FilesEventHandlers interface ===
 
 // ShouldCompileToWasm checks if the file triggers WASM compilation.
 // AssetMin handles assets, not WASM, so always returns false.

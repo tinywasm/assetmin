@@ -24,6 +24,7 @@ type AssetMin struct {
 	min                 *minify.M
 	buildOnDisk         bool // Build assets to disk if true
 	log                 func(message ...any)
+	goModHandler        *GoMod
 }
 
 type Config struct {
@@ -42,6 +43,8 @@ func NewAssetMin(ac *Config) *AssetMin {
 	if c.AppName == "" {
 		c.AppName = "MyApp"
 	}
+
+	c.goModHandler = NewGoMod()
 
 	jsMainFileName := "script.js"
 	cssMainFileName := "style.css"
@@ -93,7 +96,7 @@ func (c *AssetMin) Logger(messages ...any) {
 }
 
 func (c *AssetMin) SupportedExtensions() []string {
-	return []string{".js", ".css", ".svg", ".html"}
+	return []string{".js", ".css", ".svg", ".html", ".mod"}
 }
 
 func (c *AssetMin) writeMessage(messages ...any) {
