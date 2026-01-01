@@ -4,9 +4,8 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 // TestJSEventFlow verifies that when a project is already compiled and the watcher
@@ -50,69 +49,131 @@ WebAssembly.instantiateStreaming(fetch("main.wasm"), tinyGoRuntime.importObject)
 	file2Path := filepath.Join(env.BaseDir, "extras", "module2", "script2.js")
 	file3Path := filepath.Join(env.BaseDir, "web", "theme", "theme.js")
 
-	require.NoError(t, os.MkdirAll(filepath.Dir(file1Path), 0755))
-	require.NoError(t, os.MkdirAll(filepath.Dir(file2Path), 0755))
-	require.NoError(t, os.MkdirAll(filepath.Dir(file3Path), 0755))
+	if err := os.MkdirAll(filepath.Dir(file1Path), 0755); err != nil {
+		t.Fatalf("Failed to create dir for script1: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(file2Path), 0755); err != nil {
+		t.Fatalf("Failed to create dir for script2: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(file3Path), 0755); err != nil {
+		t.Fatalf("Failed to create dir for theme: %v", err)
+	}
 
 	file1Content := "console.log('Module One');"
 	file2Content := "console.log('Module Two');"
 	file3Content := "console.log('Theme Code');"
 
-	require.NoError(t, os.WriteFile(file1Path, []byte(file1Content), 0644))
-	require.NoError(t, os.WriteFile(file2Path, []byte(file2Content), 0644))
-	require.NoError(t, os.WriteFile(file3Path, []byte(file3Content), 0644))
+	if err := os.WriteFile(file1Path, []byte(file1Content), 0644); err != nil {
+		t.Fatalf("Failed to write script1: %v", err)
+	}
+	if err := os.WriteFile(file2Path, []byte(file2Content), 0644); err != nil {
+		t.Fatalf("Failed to write script2: %v", err)
+	}
+	if err := os.WriteFile(file3Path, []byte(file3Content), 0644); err != nil {
+		t.Fatalf("Failed to write theme: %v", err)
+	}
 
 	// Simulate initial compilation: send write events so main.js is produced
-	require.NoError(t, env.AssetsHandler.NewFileEvent("script1.js", ".js", file1Path, "write"))
-	require.NoError(t, env.AssetsHandler.NewFileEvent("script2.js", ".js", file2Path, "write"))
-	require.NoError(t, env.AssetsHandler.NewFileEvent("theme.js", ".js", file3Path, "write"))
+	if err := env.AssetsHandler.NewFileEvent("script1.js", ".js", file1Path, "write"); err != nil {
+		t.Fatalf("Error processing script1 write event: %v", err)
+	}
+	if err := env.AssetsHandler.NewFileEvent("script2.js", ".js", file2Path, "write"); err != nil {
+		t.Fatalf("Error processing script2 write event: %v", err)
+	}
+	if err := env.AssetsHandler.NewFileEvent("theme.js", ".js", file3Path, "write"); err != nil {
+		t.Fatalf("Error processing theme write event: %v", err)
+	}
 
 	// Ensure main.js exists and capture its content
-	require.FileExists(t, env.MainJsPath, "main.js must exist after initial write events")
+	if _, err := os.Stat(env.MainJsPath); os.IsNotExist(err) {
+		t.Fatalf("main.js must exist after initial write events at %s", env.MainJsPath)
+	}
 	initialMain, err := os.ReadFile(env.MainJsPath)
-	require.NoError(t, err, "unable to read main.js after initial compilation")
+	if err != nil {
+		t.Fatalf("unable to read main.js after initial compilation: %v", err)
+	}
 
 	// Verify that mock WASM JS is included in main.js
 	initialMainStr := string(initialMain)
-	require.Contains(t, initialMainStr, "goRuntime", "main.js should contain mock Go WASM runtime initialization")
-	require.Contains(t, initialMainStr, "WebAssembly.instantiateStreaming", "main.js should contain WASM instantiation code")
+	if !strings.Contains(initialMainStr, "goRuntime") {
+		t.Errorf("main.js should contain mock Go WASM runtime initialization")
+	}
+	if !strings.Contains(initialMainStr, "WebAssembly.instantiateStreaming") {
+		t.Errorf("main.js should contain WASM instantiation code")
+	}
 	t.Log("✓ Verified: main.js contains Go WASM initialization JavaScript")
 
 	// 1) Send "create" events for the same three files (simulating watcher initial registration)
 	t.Log("Phase 1: sending 'create' events for existing files — expect no change")
-	require.NoError(t, env.AssetsHandler.NewFileEvent("script1.js", ".js", file1Path, "create"))
-	require.NoError(t, env.AssetsHandler.NewFileEvent("script2.js", ".js", file2Path, "create"))
-	require.NoError(t, env.AssetsHandler.NewFileEvent("theme.js", ".js", file3Path, "create"))
+	if err := env.AssetsHandler.NewFileEvent("script1.js", ".js", file1Path, "create"); err != nil {
+		t.Fatalf("Error processing script1 create event: %v", err)
+	}
+	if err := env.AssetsHandler.NewFileEvent("script2.js", ".js", file2Path, "create"); err != nil {
+		t.Fatalf("Error processing script2 create event: %v", err)
+	}
+	if err := env.AssetsHandler.NewFileEvent("theme.js", ".js", file3Path, "create"); err != nil {
+		t.Fatalf("Error processing theme create event: %v", err)
+	}
 
 	afterCreates, err := os.ReadFile(env.MainJsPath)
-	require.NoError(t, err, "unable to read main.js after create events")
+	if err != nil {
+		t.Fatalf("unable to read main.js after create events: %v", err)
+	}
 	// main.js should remain exactly the same
-	require.True(t, bytes.Equal(initialMain, afterCreates), "main.js changed after duplicate 'create' events")
+	if !bytes.Equal(initialMain, afterCreates) {
+		t.Errorf("main.js changed after duplicate 'create' events")
+	}
 
 	// 2) Create a new empty JS file and send a 'create' event — output should remain unchanged
 	newFilePath := filepath.Join(env.BaseDir, "modules", "module3", "newfile.js")
-	require.NoError(t, os.MkdirAll(filepath.Dir(newFilePath), 0755))
-	require.NoError(t, os.WriteFile(newFilePath, []byte{}, 0644))
-	require.NoError(t, env.AssetsHandler.NewFileEvent("newfile.js", ".js", newFilePath, "create"))
+	if err := os.MkdirAll(filepath.Dir(newFilePath), 0755); err != nil {
+		t.Fatalf("Failed to create dir for newfile: %v", err)
+	}
+	if err := os.WriteFile(newFilePath, []byte{}, 0644); err != nil {
+		t.Fatalf("Failed to write empty newfile: %v", err)
+	}
+	if err := env.AssetsHandler.NewFileEvent("newfile.js", ".js", newFilePath, "create"); err != nil {
+		t.Fatalf("Error processing newfile create event: %v", err)
+	}
 
 	afterEmptyCreate, err := os.ReadFile(env.MainJsPath)
-	require.NoError(t, err, "unable to read main.js after creating empty file")
-	require.True(t, bytes.Equal(initialMain, afterEmptyCreate), "main.js changed after creating an empty file with 'create' event")
+	if err != nil {
+		t.Fatalf("unable to read main.js after creating empty file: %v", err)
+	}
+	if !bytes.Equal(initialMain, afterEmptyCreate) {
+		t.Errorf("main.js changed after creating an empty file with 'create' event")
+	}
 
 	// 3) Write content to the new file and send a 'write' event — expect previous content + new file
 	addedContent := "console.log('New Module added');"
-	require.NoError(t, os.WriteFile(newFilePath, []byte(addedContent), 0644))
-	require.NoError(t, env.AssetsHandler.NewFileEvent("newfile.js", ".js", newFilePath, "write"))
+	if err := os.WriteFile(newFilePath, []byte(addedContent), 0644); err != nil {
+		t.Fatalf("Failed to write to newfile: %v", err)
+	}
+	if err := env.AssetsHandler.NewFileEvent("newfile.js", ".js", newFilePath, "write"); err != nil {
+		t.Fatalf("Error processing newfile write event: %v", err)
+	}
 
 	finalMain, err := os.ReadFile(env.MainJsPath)
-	require.NoError(t, err, "unable to read main.js after writing new file")
+	if err != nil {
+		t.Fatalf("unable to read main.js after writing new file: %v", err)
+	}
 	finalStr := string(finalMain)
 
-	require.Contains(t, finalStr, "Module One", "final main.js should contain content from module1/script1.js")
-	require.Contains(t, finalStr, "Module Two", "final main.js should contain content from module2/script2.js")
-	require.Contains(t, finalStr, "Theme Code", "final main.js should contain content from web/theme/theme.js")
-	require.Contains(t, finalStr, "New Module added", "final main.js should contain the newly written file content")
-	require.Contains(t, finalStr, "goRuntime", "final main.js should still contain Go WASM runtime")
+	if !strings.Contains(finalStr, "Module One") {
+		t.Errorf("final main.js should contain content from module1/script1.js")
+	}
+	if !strings.Contains(finalStr, "Module Two") {
+		t.Errorf("final main.js should contain content from module2/script2.js")
+	}
+	if !strings.Contains(finalStr, "Theme Code") {
+		t.Errorf("final main.js should contain content from web/theme/theme.js")
+	}
+	if !strings.Contains(finalStr, "New Module added") {
+		t.Errorf("final main.js should contain the newly written file content")
+	}
+	if !strings.Contains(finalStr, "goRuntime") {
+		t.Errorf("final main.js should still contain Go WASM runtime")
+	}
 
 	// 3.5) Test WASM mode change: Change mock to TinyGo mode and trigger regeneration
 	t.Log("Phase 3.5: testing WASM mode change from Go to TinyGo")
@@ -120,15 +181,25 @@ WebAssembly.instantiateStreaming(fetch("main.wasm"), tinyGoRuntime.importObject)
 
 	// Trigger a JS file event to force regeneration
 	dummyJsPath := filepath.Join(env.BaseDir, "modules", "dummy.js")
-	require.NoError(t, os.WriteFile(dummyJsPath, []byte("console.log('trigger');"), 0644))
-	require.NoError(t, env.AssetsHandler.NewFileEvent("dummy.js", ".js", dummyJsPath, "write"))
+	if err := os.WriteFile(dummyJsPath, []byte("console.log('trigger');"), 0644); err != nil {
+		t.Fatalf("Failed to write dummy JS: %v", err)
+	}
+	if err := env.AssetsHandler.NewFileEvent("dummy.js", ".js", dummyJsPath, "write"); err != nil {
+		t.Fatalf("Error processing dummy write event: %v", err)
+	}
 
 	afterModeChange, err := os.ReadFile(env.MainJsPath)
-	require.NoError(t, err, "unable to read main.js after mode change")
+	if err != nil {
+		t.Fatalf("unable to read main.js after mode change: %v", err)
+	}
 	afterModeChangeStr := string(afterModeChange)
 
-	require.Contains(t, afterModeChangeStr, "tinyGoRuntime", "main.js should contain TinyGo WASM runtime after mode change")
-	require.NotContains(t, afterModeChangeStr, "goRuntime", "main.js should NOT contain Go WASM runtime after mode change")
+	if !strings.Contains(afterModeChangeStr, "tinyGoRuntime") {
+		t.Errorf("main.js should contain TinyGo WASM runtime after mode change")
+	}
+	if strings.Contains(afterModeChangeStr, "goRuntime") {
+		t.Errorf("main.js should NOT contain Go WASM runtime after mode change")
+	}
 	t.Log("✓ Verified: WASM JavaScript changes when mock mode changes")
 
 	// 4) Test rename operation: rename one of the existing files
@@ -137,19 +208,37 @@ WebAssembly.instantiateStreaming(fetch("main.wasm"), tinyGoRuntime.importObject)
 	renamedContent := "console.log('Module One Renamed');"
 
 	// First send rename event for original file (removes it)
-	require.NoError(t, env.AssetsHandler.NewFileEvent("script1.js", ".js", file1Path, "rename"))
+	if err := env.AssetsHandler.NewFileEvent("script1.js", ".js", file1Path, "rename"); err != nil {
+		t.Fatalf("Error processing script1 rename: %v", err)
+	}
 
 	// Create new file and send create event (adds it)
-	require.NoError(t, os.WriteFile(renamedFilePath, []byte(renamedContent), 0644))
-	require.NoError(t, env.AssetsHandler.NewFileEvent("script1-renamed.js", ".js", renamedFilePath, "create"))
+	if err := os.WriteFile(renamedFilePath, []byte(renamedContent), 0644); err != nil {
+		t.Fatalf("Failed to write renamed JS: %v", err)
+	}
+	if err := env.AssetsHandler.NewFileEvent("script1-renamed.js", ".js", renamedFilePath, "create"); err != nil {
+		t.Fatalf("Error processing renamed JS create event: %v", err)
+	}
 
 	afterRename, err := os.ReadFile(env.MainJsPath)
-	require.NoError(t, err, "unable to read main.js after rename operation")
+	if err != nil {
+		t.Fatalf("unable to read main.js after rename operation: %v", err)
+	}
 	afterRenameStr := string(afterRename)
 
-	require.NotContains(t, afterRenameStr, "console.log('Module One');", "main.js should NOT contain original script1 content after rename")
-	require.Contains(t, afterRenameStr, "Module One Renamed", "main.js should contain renamed file content")
-	require.Contains(t, afterRenameStr, "Module Two", "main.js should still contain script2 content")
-	require.Contains(t, afterRenameStr, "Theme Code", "main.js should still contain theme content")
-	require.Contains(t, afterRenameStr, "New Module added", "main.js should still contain the new module content")
+	if strings.Contains(afterRenameStr, "console.log('Module One');") {
+		t.Errorf("main.js should NOT contain original script1 content after rename")
+	}
+	if !strings.Contains(afterRenameStr, "Module One Renamed") {
+		t.Errorf("main.js should contain renamed file content")
+	}
+	if !strings.Contains(afterRenameStr, "Module Two") {
+		t.Errorf("main.js should still contain script2 content")
+	}
+	if !strings.Contains(afterRenameStr, "Theme Code") {
+		t.Errorf("main.js should still contain theme content")
+	}
+	if !strings.Contains(afterRenameStr, "New Module added") {
+		t.Errorf("main.js should still contain the new module content")
+	}
 }

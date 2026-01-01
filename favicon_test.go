@@ -3,10 +3,8 @@ package assetmin
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestFaviconProcessing verifies that favicon.svg is processed independently
@@ -24,25 +22,41 @@ func TestFaviconProcessing(t *testing.T) {
 </svg>`
 
 		faviconPath := filepath.Join(env.BaseDir, "favicon.svg")
-		require.NoError(t, os.WriteFile(faviconPath, []byte(faviconContent), 0644))
+		if err := os.WriteFile(faviconPath, []byte(faviconContent), 0644); err != nil {
+			t.Fatalf("Failed to write favicon file: %v", err)
+		}
 
 		// Process the favicon file with create event
-		require.NoError(t, env.AssetsHandler.NewFileEvent("favicon.svg", ".svg", faviconPath, "create"))
+		if err := env.AssetsHandler.NewFileEvent("favicon.svg", ".svg", faviconPath, "create"); err != nil {
+			t.Fatalf("Error processing favicon event: %v", err)
+		}
 
 		// Verify favicon was copied to output folder
 		outputFaviconPath := filepath.Join(env.PublicDir, "favicon.svg")
-		require.FileExists(t, outputFaviconPath, "Favicon should be copied to output folder")
+		if _, err := os.Stat(outputFaviconPath); os.IsNotExist(err) {
+			t.Fatalf("Favicon should be copied to output folder, but was not found at %s", outputFaviconPath)
+		}
 
 		// Read output content
 		content, err := os.ReadFile(outputFaviconPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("Failed to read output favicon: %v", err)
+		}
 
 		// Verify content is minified SVG
 		svgContent := string(content)
-		assert.Contains(t, svgContent, "<svg", "Should contain SVG tag")
-		assert.Contains(t, svgContent, "circle", "Should contain circle element")
-		assert.NotContains(t, svgContent, "sprite-icons", "Should not be wrapped as sprite")
-		assert.NotContains(t, svgContent, "<defs>", "Should not contain sprite defs")
+		if !strings.Contains(svgContent, "<svg") {
+			t.Errorf("Should contain SVG tag")
+		}
+		if !strings.Contains(svgContent, "circle") {
+			t.Errorf("Should contain circle element")
+		}
+		if strings.Contains(svgContent, "sprite-icons") {
+			t.Errorf("Should not be wrapped as sprite")
+		}
+		if strings.Contains(svgContent, "<defs>") {
+			t.Errorf("Should not contain sprite defs")
+		}
 
 		env.CleanDirectory()
 	})
@@ -63,43 +77,73 @@ func TestFaviconProcessing(t *testing.T) {
 
 		// Create test icon directory
 		iconsDir := filepath.Join(env.BaseDir, "icons")
-		require.NoError(t, os.MkdirAll(iconsDir, 0755))
+		if err := os.MkdirAll(iconsDir, 0755); err != nil {
+			t.Fatalf("Failed to create icons directory: %v", err)
+		}
 
 		faviconPath := filepath.Join(env.BaseDir, "favicon.svg")
 		iconPath := filepath.Join(iconsDir, "home.svg")
 
-		require.NoError(t, os.WriteFile(faviconPath, []byte(faviconContent), 0644))
-		require.NoError(t, os.WriteFile(iconPath, []byte(iconContent), 0644))
+		if err := os.WriteFile(faviconPath, []byte(faviconContent), 0644); err != nil {
+			t.Fatalf("Failed to write favicon file: %v", err)
+		}
+		if err := os.WriteFile(iconPath, []byte(iconContent), 0644); err != nil {
+			t.Fatalf("Failed to write icon file: %v", err)
+		}
 
 		// Process both files
-		require.NoError(t, env.AssetsHandler.NewFileEvent("favicon.svg", ".svg", faviconPath, "create"))
-		require.NoError(t, env.AssetsHandler.NewFileEvent("home.svg", ".svg", iconPath, "create"))
+		if err := env.AssetsHandler.NewFileEvent("favicon.svg", ".svg", faviconPath, "create"); err != nil {
+			t.Fatalf("Error processing favicon event: %v", err)
+		}
+		if err := env.AssetsHandler.NewFileEvent("home.svg", ".svg", iconPath, "create"); err != nil {
+			t.Fatalf("Error processing icon event: %v", err)
+		}
 
 		// Verify favicon output
 		outputFaviconPath := filepath.Join(env.PublicDir, "favicon.svg")
-		require.FileExists(t, outputFaviconPath)
+		if _, err := os.Stat(outputFaviconPath); os.IsNotExist(err) {
+			t.Fatalf("Favicon output should exist at %s", outputFaviconPath)
+		}
 
 		faviconOut, err := os.ReadFile(outputFaviconPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("Failed to read output favicon: %v", err)
+		}
 		faviconStr := string(faviconOut)
 
 		// Favicon should be standalone SVG
-		assert.Contains(t, faviconStr, "<svg", "Favicon should be SVG")
-		assert.Contains(t, faviconStr, "circle", "Favicon should have its content")
-		assert.NotContains(t, faviconStr, "icon-home", "Favicon should not contain sprite icons")
+		if !strings.Contains(faviconStr, "<svg") {
+			t.Errorf("Favicon should be SVG")
+		}
+		if !strings.Contains(faviconStr, "circle") {
+			t.Errorf("Favicon should have its content")
+		}
+		if strings.Contains(faviconStr, "icon-home") {
+			t.Errorf("Favicon should not contain sprite icons")
+		}
 
 		// Verify sprite output
 		outputSpritePath := filepath.Join(env.PublicDir, "sprite.svg")
-		require.FileExists(t, outputSpritePath)
+		if _, err := os.Stat(outputSpritePath); os.IsNotExist(err) {
+			t.Fatalf("Sprite output should exist at %s", outputSpritePath)
+		}
 
 		spriteOut, err := os.ReadFile(outputSpritePath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("Failed to read output sprite: %v", err)
+		}
 		spriteStr := string(spriteOut)
 
 		// Sprite should contain the icon but not the favicon
-		assert.Contains(t, spriteStr, "icon-home", "Sprite should contain icon")
-		assert.Contains(t, spriteStr, "sprite-icons", "Sprite should have sprite class")
-		assert.NotContains(t, spriteStr, "circle", "Sprite should not contain favicon content")
+		if !strings.Contains(spriteStr, "icon-home") {
+			t.Errorf("Sprite should contain icon")
+		}
+		if !strings.Contains(spriteStr, "sprite-icons") {
+			t.Errorf("Sprite should have sprite class")
+		}
+		if strings.Contains(spriteStr, "circle") {
+			t.Errorf("Sprite should not contain favicon content")
+		}
 
 		env.CleanDirectory()
 	})
@@ -115,25 +159,39 @@ func TestFaviconProcessing(t *testing.T) {
 </svg>`
 
 		faviconPath := filepath.Join(env.BaseDir, "favicon.svg")
-		require.NoError(t, os.WriteFile(faviconPath, []byte(initialContent), 0644))
-		require.NoError(t, env.AssetsHandler.NewFileEvent("favicon.svg", ".svg", faviconPath, "create"))
+		if err := os.WriteFile(faviconPath, []byte(initialContent), 0644); err != nil {
+			t.Fatalf("Failed to write initial favicon: %v", err)
+		}
+		if err := env.AssetsHandler.NewFileEvent("favicon.svg", ".svg", faviconPath, "create"); err != nil {
+			t.Fatalf("Error processing creation event: %v", err)
+		}
 
 		// Update favicon content
 		updatedContent := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
 	<rect x="10" y="10" width="80" height="80" fill="green"/>
 </svg>`
 
-		require.NoError(t, os.WriteFile(faviconPath, []byte(updatedContent), 0644))
-		require.NoError(t, env.AssetsHandler.NewFileEvent("favicon.svg", ".svg", faviconPath, "write"))
+		if err := os.WriteFile(faviconPath, []byte(updatedContent), 0644); err != nil {
+			t.Fatalf("Failed to update favicon: %v", err)
+		}
+		if err := env.AssetsHandler.NewFileEvent("favicon.svg", ".svg", faviconPath, "write"); err != nil {
+			t.Fatalf("Error processing write event: %v", err)
+		}
 
 		// Verify updated output
 		outputFaviconPath := filepath.Join(env.PublicDir, "favicon.svg")
 		content, err := os.ReadFile(outputFaviconPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("Failed to read output favicon: %v", err)
+		}
 
 		svgContent := string(content)
-		assert.Contains(t, svgContent, "rect", "Should contain updated rect element")
-		assert.NotContains(t, svgContent, "circle", "Should not contain old circle element")
+		if !strings.Contains(svgContent, "rect") {
+			t.Errorf("Should contain updated rect element")
+		}
+		if strings.Contains(svgContent, "circle") {
+			t.Errorf("Should not contain old circle element")
+		}
 
 		env.CleanDirectory()
 	})
@@ -149,23 +207,37 @@ func TestFaviconProcessing(t *testing.T) {
 </svg>`
 
 		faviconPath := filepath.Join(env.BaseDir, "favicon.svg")
-		require.NoError(t, os.WriteFile(faviconPath, []byte(faviconContent), 0644))
-		require.NoError(t, env.AssetsHandler.NewFileEvent("favicon.svg", ".svg", faviconPath, "create"))
+		if err := os.WriteFile(faviconPath, []byte(faviconContent), 0644); err != nil {
+			t.Fatalf("Failed to write favicon: %v", err)
+		}
+		if err := env.AssetsHandler.NewFileEvent("favicon.svg", ".svg", faviconPath, "create"); err != nil {
+			t.Fatalf("Error processing creation event: %v", err)
+		}
 
 		outputFaviconPath := filepath.Join(env.PublicDir, "favicon.svg")
-		require.FileExists(t, outputFaviconPath, "Favicon should exist before delete")
+		if _, err := os.Stat(outputFaviconPath); os.IsNotExist(err) {
+			t.Fatalf("Favicon should exist before delete at %s", outputFaviconPath)
+		}
 
 		// Delete favicon source file
-		require.NoError(t, os.Remove(faviconPath))
-		require.NoError(t, env.AssetsHandler.NewFileEvent("favicon.svg", ".svg", faviconPath, "remove"))
+		if err := os.Remove(faviconPath); err != nil {
+			t.Fatalf("Failed to remove favicon source: %v", err)
+		}
+		if err := env.AssetsHandler.NewFileEvent("favicon.svg", ".svg", faviconPath, "remove"); err != nil {
+			t.Fatalf("Error processing removal event: %v", err)
+		}
 
 		// Verify output is empty or minimal after delete
 		content, err := os.ReadFile(outputFaviconPath)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("Failed to read output favicon: %v", err)
+		}
 
 		// After deletion, the output should be minimal (no content in contentMiddle)
 		svgContent := string(content)
-		assert.NotContains(t, svgContent, "circle", "Should not contain deleted circle")
+		if strings.Contains(svgContent, "circle") {
+			t.Errorf("Should not contain deleted circle")
+		}
 
 		env.CleanDirectory()
 	})

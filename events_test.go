@@ -4,9 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestOutputFileHandling verifica que la función NewFileEvent maneje correctamente los casos
@@ -33,40 +30,58 @@ func TestOutputFileHandling(t *testing.T) {
 
 		// Create an initial JS file to ensure main.js is created
 		initialJsFile := filepath.Join(env.BaseDir, "initial.js")
-		require.NoError(t, os.WriteFile(initialJsFile, []byte("console.log('initial');"), 0644))
-		require.NoError(t, env.AssetsHandler.NewFileEvent("initial.js", ".js", initialJsFile, "create"))
+		if err := os.WriteFile(initialJsFile, []byte("console.log('initial');"), 0644); err != nil {
+			t.Fatalf("Failed to write initial JS file: %v", err)
+		}
+		if err := env.AssetsHandler.NewFileEvent("initial.js", ".js", initialJsFile, "create"); err != nil {
+			t.Fatalf("Error processing creation event: %v", err)
+		}
 
 		// Verify main.js exists
-		require.FileExists(t, env.MainJsPath, "The script.js file should be created")
+		if _, err := os.Stat(env.MainJsPath); os.IsNotExist(err) {
+			t.Fatalf("The script.js file should be created at %s", env.MainJsPath)
+		}
 
 		// Test that directly modifying the output file doesn't cause issues
 		// Test for Windows-style path
 		t.Run("windows_path", func(t *testing.T) {
 			windowsPath := filepath.FromSlash(env.MainJsPath)
 			err := env.AssetsHandler.NewFileEvent("script.js", ".js", windowsPath, "write")
-			assert.NoError(t, err, "Should handle Windows output path without error")
+			if err != nil {
+				t.Errorf("Should handle Windows output path without error: %v", err)
+			}
 		})
 
 		// Test for Unix-style path
 		t.Run("unix_path", func(t *testing.T) {
 			unixPath := filepath.ToSlash(env.MainJsPath)
 			err := env.AssetsHandler.NewFileEvent("script.js", ".js", unixPath, "write")
-			assert.NoError(t, err, "Should handle Unix output path without error")
+			if err != nil {
+				t.Errorf("Should handle Unix output path without error: %v", err)
+			}
 		})
 
 		// Test for CSS output file
 		t.Run("css_output_file", func(t *testing.T) {
 			// Create an initial CSS file to ensure main.css is created
 			initialCssFile := filepath.Join(env.BaseDir, "initial.css")
-			require.NoError(t, os.WriteFile(initialCssFile, []byte("body { color: red; }"), 0644))
-			require.NoError(t, env.AssetsHandler.NewFileEvent("initial.css", ".css", initialCssFile, "create"))
+			if err := os.WriteFile(initialCssFile, []byte("body { color: red; }"), 0644); err != nil {
+				t.Fatalf("Failed to write initial CSS file: %v", err)
+			}
+			if err := env.AssetsHandler.NewFileEvent("initial.css", ".css", initialCssFile, "create"); err != nil {
+				t.Fatalf("Error processing CSS creation event: %v", err)
+			}
 
 			// Verify main.css exists
-			require.FileExists(t, env.MainCssPath, "The main.css file should be created")
+			if _, err := os.Stat(env.MainCssPath); os.IsNotExist(err) {
+				t.Fatalf("The main.css file should be created at %s", env.MainCssPath)
+			}
 
 			// Test the CSS output file
 			err := env.AssetsHandler.NewFileEvent("main.css", ".css", env.MainCssPath, "write")
-			assert.NoError(t, err, "Should handle CSS output path without error")
+			if err != nil {
+				t.Errorf("Should handle CSS output path without error: %v", err)
+			}
 		})
 
 		// Test for case-insensitive path comparison
@@ -80,7 +95,9 @@ func TestOutputFileHandling(t *testing.T) {
 
 			err := env.AssetsHandler.NewFileEvent("SCRIPT.JS", ".js", upperCasePath, "write")
 			// This should still be handled properly
-			assert.NoError(t, err, "Should handle case differences in path without error")
+			if err != nil {
+				t.Errorf("Should handle case differences in path without error: %v", err)
+			}
 		})
 
 		env.CleanDirectory()

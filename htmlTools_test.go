@@ -3,8 +3,6 @@ package assetmin
 import (
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestParseExistingHtmlContent(t *testing.T) {
@@ -24,9 +22,15 @@ func TestParseExistingHtmlContent(t *testing.T) {
 
 		open, close := parseExistingHtmlContent(html)
 
-		assert.Contains(t, open, "<header>Header</header>")
-		assert.Contains(t, close, "<footer>Footer</footer>")
-		assert.Contains(t, close, "<script src=\"app.js\"></script>")
+		if !strings.Contains(open, "<header>Header</header>") {
+			t.Errorf("open should contain header")
+		}
+		if !strings.Contains(close, "<footer>Footer</footer>") {
+			t.Errorf("close should contain footer")
+		}
+		if !strings.Contains(close, "<script src=\"app.js\"></script>") {
+			t.Errorf("close should contain script tag")
+		}
 	})
 
 	t.Run("with_main_tag", func(t *testing.T) {
@@ -47,9 +51,15 @@ func TestParseExistingHtmlContent(t *testing.T) {
 
 		open, close := parseExistingHtmlContent(html)
 
-		assert.Contains(t, open, "<main>")
-		assert.Contains(t, close, "</main>")
-		assert.Contains(t, close, "<footer>Footer</footer>")
+		if !strings.Contains(open, "<main>") {
+			t.Errorf("open should contain <main>")
+		}
+		if !strings.Contains(close, "</main>") {
+			t.Errorf("close should contain </main>")
+		}
+		if !strings.Contains(close, "<footer>Footer</footer>") {
+			t.Errorf("close should contain footer")
+		}
 	})
 
 	t.Run("with_script_tag", func(t *testing.T) {
@@ -67,9 +77,15 @@ func TestParseExistingHtmlContent(t *testing.T) {
 
 		open, close := parseExistingHtmlContent(html)
 
-		assert.Contains(t, open, "<div>Content</div>")
-		assert.Contains(t, close, "<script src=\"app.js\"></script>")
-		assert.NotContains(t, open, "<script")
+		if !strings.Contains(open, "<div>Content</div>") {
+			t.Errorf("open should contain content div")
+		}
+		if !strings.Contains(close, "<script src=\"app.js\"></script>") {
+			t.Errorf("close should contain script tag")
+		}
+		if strings.Contains(open, "<script") {
+			t.Errorf("open should NOT contain script tag")
+		}
 	})
 
 	t.Run("only_body_tag", func(t *testing.T) {
@@ -86,9 +102,15 @@ func TestParseExistingHtmlContent(t *testing.T) {
 
 		open, close := parseExistingHtmlContent(html)
 
-		assert.Contains(t, open, "<div>Content</div>")
-		assert.Contains(t, close, "</body>")
-		assert.Contains(t, close, "</html>")
+		if !strings.Contains(open, "<div>Content</div>") {
+			t.Errorf("open should contain content div")
+		}
+		if !strings.Contains(close, "</body>") {
+			t.Errorf("close should contain </body>")
+		}
+		if !strings.Contains(close, "</html>") {
+			t.Errorf("close should contain </html>")
+		}
 	})
 
 	t.Run("complex_body_structure", func(t *testing.T) {
@@ -125,15 +147,27 @@ func TestParseExistingHtmlContent(t *testing.T) {
 		open, close := parseExistingHtmlContent(html)
 
 		// Verificar que el contenido se dividió correctamente en el marcador {{.Modules}}
-		assert.Contains(t, open, "<div id=\"user-mobile-messages\">")
-		assert.Contains(t, open, "<h4 class=\"err\">Message</h4>")
-		assert.Contains(t, open, `<div id="user-mobile-messages">
+		if !strings.Contains(open, "<div id=\"user-mobile-messages\">") {
+			t.Errorf("open should contain user-mobile-messages div")
+		}
+		if !strings.Contains(open, "<h4 class=\"err\">Message</h4>") {
+			t.Errorf("open should contain error message")
+		}
+		if !strings.Contains(open, `<div id="user-mobile-messages">
 		<h4 class="err">Message</h4>
-	</div>`)
-		assert.Contains(t, close, "<script src=\"app.js\"></script>")
+	</div>`) {
+			t.Errorf("open should contain full message structure")
+		}
+		if !strings.Contains(close, "<script src=\"app.js\"></script>") {
+			t.Errorf("close should contain script tag")
+		}
 
 		// Verificar que la división fue exacta alrededor del marcador
-		assert.True(t, strings.HasSuffix(strings.TrimSpace(open), "</div>"))
-		assert.True(t, strings.HasPrefix(strings.TrimSpace(close), "<script"))
+		if !strings.HasSuffix(strings.TrimSpace(open), "</div>") {
+			t.Errorf("open should end with </div>")
+		}
+		if !strings.HasPrefix(strings.TrimSpace(close), "<script") {
+			t.Errorf("close should start with <script")
+		}
 	})
 }

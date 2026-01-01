@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestStripUseStrictAndSingleOccurrence(t *testing.T) {
@@ -27,34 +25,52 @@ func TestStripUseStrictAndSingleOccurrence(t *testing.T) {
 	// Create a file that already contains a leading use strict directive
 	file1 := "a.js"
 	path1 := filepath.Join(env.BaseDir, file1)
-	require.NoError(t, os.WriteFile(path1, []byte("'use strict';\nconsole.log('A');"), 0644))
+	if err := os.WriteFile(path1, []byte("'use strict';\nconsole.log('A');"), 0644); err != nil {
+		t.Fatalf("Failed to write file A: %v", err)
+	}
 
 	// Create another file without the directive
 	file2 := "b.js"
 	path2 := filepath.Join(env.BaseDir, file2)
-	require.NoError(t, os.WriteFile(path2, []byte("console.log('B');"), 0644))
+	if err := os.WriteFile(path2, []byte("console.log('B');"), 0644); err != nil {
+		t.Fatalf("Failed to write file B: %v", err)
+	}
 
 	// Register both files as created
-	require.NoError(t, env.AssetsHandler.NewFileEvent(file1, ".js", path1, "create"))
-	require.NoError(t, env.AssetsHandler.NewFileEvent(file2, ".js", path2, "create"))
+	if err := env.AssetsHandler.NewFileEvent(file1, ".js", path1, "create"); err != nil {
+		t.Fatalf("Error processing file A create: %v", err)
+	}
+	if err := env.AssetsHandler.NewFileEvent(file2, ".js", path2, "create"); err != nil {
+		t.Fatalf("Error processing file B create: %v", err)
+	}
 
 	// Now trigger a write to force compilation/writing
-	require.NoError(t, env.AssetsHandler.NewFileEvent(file1, ".js", path1, "write"))
+	if err := env.AssetsHandler.NewFileEvent(file1, ".js", path1, "write"); err != nil {
+		t.Fatalf("Error processing file A write: %v", err)
+	}
 
 	// Read generated main JS
 	out, err := os.ReadFile(env.MainJsPath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Failed to read main.js: %v", err)
+	}
 	outStr := string(out)
 
 	// Count occurrences of use strict (both 'use strict' and "use strict")
 	lower := strings.ToLower(outStr)
 	count := strings.Count(lower, "use strict")
-	require.Equal(t, 1, count, "There should be exactly one 'use strict' in the output")
+	if count != 1 {
+		t.Errorf("There should be exactly one 'use strict' in the output, got %d", count)
+	}
 
 	// Basic content checks: ensure both A and B outputs exist in the minified bundle
 	// Note: content may be transformed by minification, so check for partial strings
-	require.True(t, strings.Contains(outStr, "A") || strings.Contains(outStr, "console.log"), "Content from file A should be present")
-	require.True(t, strings.Contains(outStr, "B") || strings.Contains(outStr, "console.log"), "Content from file B should be present")
+	if !(strings.Contains(outStr, "A") || strings.Contains(outStr, "console.log")) {
+		t.Errorf("Content from file A should be present")
+	}
+	if !(strings.Contains(outStr, "B") || strings.Contains(outStr, "console.log")) {
+		t.Errorf("Content from file B should be present")
+	}
 }
 
 func TestStripUseStrictWithWasmExecContent(t *testing.T) {
@@ -90,15 +106,23 @@ func TestStripUseStrictWithWasmExecContent(t *testing.T) {
 	// Create a regular JS file
 	file1 := "app.js"
 	path1 := filepath.Join(env.BaseDir, file1)
-	require.NoError(t, os.WriteFile(path1, []byte("console.log('App running');"), 0644))
+	if err := os.WriteFile(path1, []byte("console.log('App running');"), 0644); err != nil {
+		t.Fatalf("Failed to write app.js: %v", err)
+	}
 
 	// Register file and trigger compilation
-	require.NoError(t, env.AssetsHandler.NewFileEvent(file1, ".js", path1, "create"))
-	require.NoError(t, env.AssetsHandler.NewFileEvent(file1, ".js", path1, "write"))
+	if err := env.AssetsHandler.NewFileEvent(file1, ".js", path1, "create"); err != nil {
+		t.Fatalf("Error processing app.js create: %v", err)
+	}
+	if err := env.AssetsHandler.NewFileEvent(file1, ".js", path1, "write"); err != nil {
+		t.Fatalf("Error processing app.js write: %v", err)
+	}
 
 	// Read generated main JS
 	out, err := os.ReadFile(env.MainJsPath)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Failed to read main.js: %v", err)
+	}
 	outStr := string(out)
 
 	// Debug: print the first 500 characters to see what's happening
@@ -107,9 +131,15 @@ func TestStripUseStrictWithWasmExecContent(t *testing.T) {
 	// Count occurrences of use strict (should be exactly 1)
 	lower := strings.ToLower(outStr)
 	count := strings.Count(lower, "use strict")
-	require.Equal(t, 1, count, "There should be exactly one 'use strict' in the output, not %d", count)
+	if count != 1 {
+		t.Errorf("There should be exactly one 'use strict' in the output, got %d", count)
+	}
 
 	// Verify content is present
-	require.Contains(t, outStr, "App running")
-	require.Contains(t, outStr, "WebAssembly.instantiateStreaming")
+	if !strings.Contains(outStr, "App running") {
+		t.Errorf("Output should contain 'App running'")
+	}
+	if !strings.Contains(outStr, "WebAssembly.instantiateStreaming") {
+		t.Errorf("Output should contain 'WebAssembly.instantiateStreaming'")
+	}
 }

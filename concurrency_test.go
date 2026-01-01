@@ -3,10 +3,9 @@ package assetmin
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestCacheConcurrency(t *testing.T) {
@@ -18,10 +17,14 @@ func TestCacheConcurrency(t *testing.T) {
 	jsFileName := "script1.js"
 	jsFilePath := filepath.Join(env.BaseDir, jsFileName)
 	jsContent := []byte("console.log('Hello from JS');")
-	require.NoError(t, os.WriteFile(jsFilePath, jsContent, 0644))
+	if err := os.WriteFile(jsFilePath, jsContent, 0644); err != nil {
+		t.Fatalf("Failed to write JS file: %v", err)
+	}
 
 	// Initial event to populate the asset
-	require.NoError(t, env.AssetsHandler.NewFileEvent(jsFileName, ".js", jsFilePath, "create"))
+	if err := env.AssetsHandler.NewFileEvent(jsFileName, ".js", jsFilePath, "create"); err != nil {
+		t.Fatalf("Error processing creation event: %v", err)
+	}
 
 	var wg sync.WaitGroup
 	numReaders := 100
@@ -31,8 +34,9 @@ func TestCacheConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := env.AssetsHandler.mainJsHandler.GetMinifiedContent(env.AssetsHandler.min)
-			require.NoError(t, err)
+			if _, err := env.AssetsHandler.mainJsHandler.GetMinifiedContent(env.AssetsHandler.min); err != nil {
+				t.Errorf("Error getting minified content: %v", err)
+			}
 		}()
 	}
 
@@ -41,14 +45,22 @@ func TestCacheConcurrency(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		newContent := []byte("console.log('Updated JS');")
-		require.NoError(t, os.WriteFile(jsFilePath, newContent, 0644))
-		require.NoError(t, env.AssetsHandler.NewFileEvent(jsFileName, ".js", jsFilePath, "write"))
+		if err := os.WriteFile(jsFilePath, newContent, 0644); err != nil {
+			t.Errorf("Failed to update JS file: %v", err)
+		}
+		if err := env.AssetsHandler.NewFileEvent(jsFileName, ".js", jsFilePath, "write"); err != nil {
+			t.Errorf("Error processing write event: %v", err)
+		}
 	}()
 
 	wg.Wait()
 
 	// Final check of the content
 	finalContent, err := env.AssetsHandler.mainJsHandler.GetMinifiedContent(env.AssetsHandler.min)
-	require.NoError(t, err)
-	require.Contains(t, string(finalContent), "Updated JS")
+	if err != nil {
+		t.Fatalf("Error getting final content: %v", err)
+	}
+	if !strings.Contains(string(finalContent), "Updated JS") {
+		t.Errorf("Final content mismatch: expected \"Updated JS\" to be in content")
+	}
 }

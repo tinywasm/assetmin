@@ -3,9 +3,8 @@ package assetmin
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestAssetScenario(t *testing.T) {
@@ -21,18 +20,27 @@ func TestAssetScenario(t *testing.T) {
 		jsFilePath := filepath.Join(env.BaseDir, jsFileName)
 		jsContent := []byte("console.log('Hello from JS');")
 
-		require.NoError(t, os.WriteFile(jsFilePath, jsContent, 0644))
-		require.NoError(t, env.AssetsHandler.NewFileEvent(jsFileName, ".js", jsFilePath, "create"))
+		if err := os.WriteFile(jsFilePath, jsContent, 0644); err != nil {
+			t.Fatalf("Failed to write JS file: %v", err)
+		}
+		if err := env.AssetsHandler.NewFileEvent(jsFileName, ".js", jsFilePath, "create"); err != nil {
+			t.Fatalf("Error processing JS creation event: %v", err)
+		}
 
 		// Verificar que el archivo main.js fue creado correctamente
 		_, err := os.Stat(env.MainJsPath)
-		require.NoError(t, err, "El archivo main.js no fue creado")
-		require.FileExists(t, env.MainJsPath, "El archivo main.js no existe")
+		if err != nil {
+			t.Fatalf("El archivo main.js no fue creado: %v", err)
+		}
 
 		// Verificar que el contenido fue escrito correctamente
 		content, err := os.ReadFile(env.MainJsPath)
-		require.NoError(t, err, "No se pudo leer el archivo main.js")
-		require.Contains(t, string(content), "Hello from JS", "El contenido del archivo main.js no es el esperado")
+		if err != nil {
+			t.Fatalf("No se pudo leer el archivo main.js: %v", err)
+		}
+		if !strings.Contains(string(content), "Hello from JS") {
+			t.Errorf("El contenido del archivo main.js no es el esperado")
+		}
 
 		env.CleanDirectory()
 
@@ -94,23 +102,37 @@ func (env *TestEnvironment) TestEventBasedCompilation(fileExtension string) {
 	}
 
 	filePath := filepath.Join(env.BaseDir, fileName)
-	require.NoError(env.t, os.WriteFile(filePath, []byte(fileContent), 0644))
+	if err := os.WriteFile(filePath, []byte(fileContent), 0644); err != nil {
+		env.t.Fatalf("Failed to write test file: %v", err)
+	}
 
 	// --- false Behavior ---
 	env.AssetsHandler.SetBuildOnDisk(false)
-	require.NoError(env.t, env.AssetsHandler.NewFileEvent(fileName, fileExtension, filePath, "create"))
+	if err := env.AssetsHandler.NewFileEvent(fileName, fileExtension, filePath, "create"); err != nil {
+		env.t.Fatalf("Error processing creation event: %v", err)
+	}
 
 	// Verify file is NOT written to disk in false
 	_, err := os.Stat(mainPath)
-	require.True(env.t, os.IsNotExist(err), "File should not be written in false")
+	if !os.IsNotExist(err) {
+		env.t.Errorf("File should not be written when BuildOnDisk is false")
+	}
 
 	// --- true Behavior ---
 	env.AssetsHandler.SetBuildOnDisk(true)
-	require.NoError(env.t, env.AssetsHandler.NewFileEvent(fileName, fileExtension, filePath, "write"))
+	if err := env.AssetsHandler.NewFileEvent(fileName, fileExtension, filePath, "write"); err != nil {
+		env.t.Fatalf("Error processing write event: %v", err)
+	}
 
 	// Verify file IS written to disk in true
-	require.FileExists(env.t, mainPath, "File should be written in true")
+	if _, err := os.Stat(mainPath); os.IsNotExist(err) {
+		env.t.Errorf("File should be written when BuildOnDisk is true")
+	}
 	content, err := os.ReadFile(mainPath)
-	require.NoError(env.t, err)
-	require.Contains(env.t, string(content), expectedContent, "File content mismatch in true")
+	if err != nil {
+		env.t.Fatalf("Failed to read output file: %v", err)
+	}
+	if !strings.Contains(string(content), expectedContent) {
+		env.t.Errorf("File content mismatch in true: expected %q to be in content", expectedContent)
+	}
 }

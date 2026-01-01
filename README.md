@@ -9,7 +9,7 @@ AssetMin bundles and minifies your JavaScript, CSS, SVG, and HTML files with sup
 
 ## 🛠️ Primary Use Case
 
-AssetMin is primarily used in the [GoDEV](https://github.com/tinywasm/godev) framework for developing full stack projects with Go. It provides an efficient solution for managing and optimizing web assets, ensuring seamless integration into your Go workflow.
+AssetMin is primarily used in the [APP](https://github.com/tinywasm/app) framework for developing full stack projects with Go. It provides an efficient solution for managing and optimizing web assets, ensuring seamless integration into your Go workflow.
 
 ## ✨ Features
 

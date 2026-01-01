@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 // TestEnvironment holds all the paths and components needed for asset tests
@@ -86,7 +84,9 @@ func setupTestEnv(testCase string, t *testing.T, objects ...any) *TestEnvironmen
 
 	// Create only the base directory if it doesn't exist
 	err := os.MkdirAll(baseDir, 0755)
-	require.NoError(t, err, "Failed to create base directory")
+	if err != nil {
+		t.Fatalf("Failed to create base directory: %v", err)
+	}
 
 	return &TestEnvironment{
 		BaseDir:       baseDir,
@@ -105,20 +105,26 @@ func setupTestEnv(testCase string, t *testing.T, objects ...any) *TestEnvironmen
 // CreateThemeDir creates the theme directory if it doesn't exist
 func (env *TestEnvironment) CreateThemeDir() *TestEnvironment {
 	err := os.MkdirAll(env.ThemeDir, 0755)
-	require.NoError(env.t, err, "Failed to create theme directory")
+	if err != nil {
+		env.t.Fatalf("Failed to create theme directory: %v", err)
+	}
 	return env
 }
 
 // CreatePublicDir creates the public directory if it doesn't exist
 func (env *TestEnvironment) CreatePublicDir() *TestEnvironment {
 	err := os.MkdirAll(env.PublicDir, 0755)
-	require.NoError(env.t, err, "Failed to create public directory")
+	if err != nil {
+		env.t.Fatalf("Failed to create public directory: %v", err)
+	}
 	return env
 }
 
 // CreateModulesDir creates the modules directory if it doesn't exist
 func (env *TestEnvironment) CreateModulesDir() *TestEnvironment {
 	err := os.MkdirAll(env.ModulesDir, 0755)
-	require.NoError(env.t, err, "Failed to create modules directory")
+	if err != nil {
+		env.t.Fatalf("Failed to create modules directory: %v", err)
+	}
 	return env
 }

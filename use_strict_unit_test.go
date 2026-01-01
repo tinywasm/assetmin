@@ -2,8 +2,6 @@ package assetmin
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestStripLeadingUseStrictUnit(t *testing.T) {
@@ -57,7 +55,9 @@ func TestStripLeadingUseStrictUnit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := string(stripLeadingUseStrict([]byte(tt.input)))
-			require.Equal(t, tt.expected, result, "Input: %q", tt.input)
+			if result != tt.expected {
+				t.Errorf("Input: %q, got: %q, want: %q", tt.input, result, tt.expected)
+			}
 		})
 	}
 }

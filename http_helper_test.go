@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 type testSetup struct {
@@ -16,7 +14,9 @@ type testSetup struct {
 
 func newTestSetup(t *testing.T) *testSetup {
 	outputDir, err := os.MkdirTemp("", "assetmin_test_")
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
 
 	config := &Config{
 		OutputDir: outputDir,
@@ -38,7 +38,8 @@ func (s *testSetup) cleanup() {
 
 func (s *testSetup) createTempFile(name, content string) string {
 	path := filepath.Join(s.outputDir, name)
-	err := os.WriteFile(path, []byte(content), 0644)
-	require.NoError(s.t, err)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		s.t.Fatalf("Failed to write temp file %s: %v", path, err)
+	}
 	return path
 }

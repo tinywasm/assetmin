@@ -5,9 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestSvgSpriteGeneration verifica que la funcionalidad de generación de sprites SVG
@@ -21,7 +18,9 @@ func TestSvgSpriteGeneration(t *testing.T) {
 
 		// Create a test directory for svg icons
 		testIconsDir := filepath.Join(env.BaseDir, "icons")
-		require.NoError(t, os.MkdirAll(testIconsDir, 0755))
+		if err := os.MkdirAll(testIconsDir, 0755); err != nil {
+			t.Fatalf("Failed to create icons dir: %v", err)
+		}
 
 		// Create individual icon files
 		iconPaths := createTestIcons(t, testIconsDir)
@@ -29,37 +28,57 @@ func TestSvgSpriteGeneration(t *testing.T) {
 		// Process each icon file
 		for _, iconPath := range iconPaths {
 			iconName := filepath.Base(iconPath)
-			require.NoError(t, env.AssetsHandler.NewFileEvent(iconName, ".svg", iconPath, "create"))
+			if err := env.AssetsHandler.NewFileEvent(iconName, ".svg", iconPath, "create"); err != nil {
+				t.Fatalf("Error processing icon %s: %v", iconName, err)
+			}
 		}
 
 		// Verify the sprite file was created
-		require.FileExists(t, env.MainSvgPath, "The sprite SVG file should be created")
+		if _, err := os.Stat(env.MainSvgPath); os.IsNotExist(err) {
+			t.Fatalf("The sprite SVG file should be created at %s", env.MainSvgPath)
+		}
 
 		// Read the generated file
 		content, err := os.ReadFile(env.MainSvgPath)
-		require.NoError(t, err, "Should be able to read the generated sprite file")
+		if err != nil {
+			t.Fatalf("Should be able to read the generated sprite file: %v", err)
+		}
 
 		// Verify the content structure
 		svgContent := string(content)
 
 		// Check SVG opening tag
-		assert.True(t, strings.Contains(svgContent, "<svg"), "Should contain SVG opening tag")
+		if !strings.Contains(svgContent, "<svg") {
+			t.Errorf("Should contain SVG opening tag")
+		}
 
 		// Check for symbol IDs (all test icons should be included)
-		assert.True(t, strings.Contains(svgContent, `id="icon-test1"`), "Should contain test icon 1")
-		assert.True(t, strings.Contains(svgContent, `id="icon-test2"`), "Should contain test icon 2")
+		if !strings.Contains(svgContent, `id="icon-test1"`) {
+			t.Errorf("Should contain test icon 1")
+		}
+		if !strings.Contains(svgContent, `id="icon-test2"`) {
+			t.Errorf("Should contain test icon 2")
+		}
 
 		// Test removing an icon
-		require.NoError(t, env.AssetsHandler.NewFileEvent("test1.svg", ".svg", iconPaths[0], "remove"))
+		if err := env.AssetsHandler.NewFileEvent("test1.svg", ".svg", iconPaths[0], "remove"); err != nil {
+			t.Fatalf("Error removing icon: %v", err)
+		}
 
 		// Verify the updated sprite
 		content, err = os.ReadFile(env.MainSvgPath)
-		require.NoError(t, err, "Should be able to read the updated sprite file")
+		if err != nil {
+			t.Fatalf("Should be able to read the updated sprite file: %v", err)
+		}
 		svgContent = string(content)
 
 		// The removed icon should not be present
-		assert.False(t, strings.Contains(svgContent, `id="icon-test1"`), "Should not contain removed test icon 1")
-		assert.True(t, strings.Contains(svgContent, `id="icon-test2"`), "Should still contain test icon 2")
+		if strings.Contains(svgContent, `id="icon-test1"`) {
+			t.Errorf("Should not contain removed test icon 1")
+		}
+		if !strings.Contains(svgContent, `id="icon-test2"`) {
+			t.Errorf("Should still contain test icon 2")
+		}
 
 		env.CleanDirectory()
 	})
@@ -75,7 +94,9 @@ func TestSvgSpriteStructure(t *testing.T) {
 		// Access the SVG handler directly
 		svgHandler := env.AssetsHandler.spriteSvgHandler
 		// Verificar que contentOpen tiene el contenido adecuado
-		require.GreaterOrEqual(t, len(svgHandler.contentOpen), 1, "SVG handler should have contentOpen")
+		if len(svgHandler.contentOpen) < 1 {
+			t.Fatalf("SVG handler should have contentOpen")
+		}
 
 		// Verificar que contentOpen contiene las etiquetas de apertura SVG
 		found := false
@@ -86,7 +107,9 @@ func TestSvgSpriteStructure(t *testing.T) {
 				break
 			}
 		}
-		assert.True(t, found, "ContentOpen should contain SVG opening tag")
+		if !found {
+			t.Errorf("ContentOpen should contain SVG opening tag")
+		}
 
 		// Create a test icon
 		iconContent := `<symbol id="icon-test" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2L2 22h20L12 2z"/></symbol>`
@@ -95,7 +118,9 @@ func TestSvgSpriteStructure(t *testing.T) {
 			content: []byte(iconContent),
 		}
 		// Add the icon to the handler without writing to disk
-		require.NoError(t, svgHandler.UpdateContent(iconFile.path, "create", iconFile))
+		if err := svgHandler.UpdateContent(iconFile.path, "create", iconFile); err != nil {
+			t.Fatalf("Error updating content: %v", err)
+		}
 
 		// En lugar de escribir en disco y leer el archivo, verificamos directamente
 		// el contenido en memoria combinando contentOpen + contenido del símbolo + contentClose
@@ -115,9 +140,15 @@ func TestSvgSpriteStructure(t *testing.T) {
 		}
 
 		// Check if it has proper opening and closing structure
-		assert.Contains(t, svgContent, "<svg", "Should contain opening SVG tag")
-		assert.Contains(t, svgContent, "</svg>", "Should contain closing SVG tag")
-		assert.Contains(t, svgContent, `id="icon-test"`, "Should contain the test icon")
+		if !strings.Contains(svgContent, "<svg") {
+			t.Errorf("Should contain opening SVG tag")
+		}
+		if !strings.Contains(svgContent, "</svg>") {
+			t.Errorf("Should contain closing SVG tag")
+		}
+		if !strings.Contains(svgContent, `id="icon-test"`) {
+			t.Errorf("Should contain the test icon")
+		}
 
 		env.CleanDirectory()
 	})
@@ -146,7 +177,9 @@ func createTestIcons(t *testing.T, dir string) []string {
 	var paths []string
 	for _, icon := range icons {
 		path := filepath.Join(dir, icon.name)
-		require.NoError(t, os.WriteFile(path, []byte(icon.content), 0644))
+		if err := os.WriteFile(path, []byte(icon.content), 0644); err != nil {
+			t.Fatalf("Failed to write icon %s: %v", icon.name, err)
+		}
 		paths = append(paths, path)
 	}
 	return paths

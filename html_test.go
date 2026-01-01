@@ -6,9 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // Función auxiliar para crear archivos de módulos HTML de prueba
@@ -22,7 +19,9 @@ func createTestHtmlModules(t *testing.T, dir string) []string {
 		moduleNumber := i + 1
 		content := fmt.Sprintf(moduleTemplate, moduleNumber, moduleNumber, moduleNumber)
 		path := filepath.Join(dir, fmt.Sprintf("module%d.html", moduleNumber))
-		require.NoError(t, os.WriteFile(path, []byte(content), 0644))
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write test module: %v", err)
+		}
 		paths = append(paths, path)
 	}
 	return paths
@@ -47,40 +46,62 @@ func TestHtmlModulesIntegration(t *testing.T) {
 		// Procesar cada archivo de módulo
 		for _, modulePath := range modulePaths {
 			moduleName := filepath.Base(modulePath)
-			require.NoError(t, env.AssetsHandler.NewFileEvent(moduleName, ".html", modulePath, "create"))
+			if err := env.AssetsHandler.NewFileEvent(moduleName, ".html", modulePath, "create"); err != nil {
+				t.Fatalf("Error processing HTML module creation event: %v", err)
+			}
 		}
 
 		// Verificar que el archivo HTML principal fue creado
-		require.FileExists(t, env.MainHtmlPath, "El archivo index.html debería haberse creado")
+		if _, err := os.Stat(env.MainHtmlPath); os.IsNotExist(err) {
+			t.Fatalf("El archivo index.html debería haberse creado at %s", env.MainHtmlPath)
+		}
 
 		// Leer el archivo generado
 		content, err := os.ReadFile(env.MainHtmlPath)
-		require.NoError(t, err, "Debería poder leer el archivo HTML generado")
+		if err != nil {
+			t.Fatalf("Debería poder leer el archivo HTML generado: %v", err)
+		}
 
 		// Verificar la estructura del contenido
 		htmlContent := string(content)
 
 		// Verificar que contenga la etiqueta de apertura HTML
-		assert.True(t, strings.Contains(htmlContent, "<!doctype html>"), "Debería contener la etiqueta doctype")
+		if !strings.Contains(htmlContent, "<!doctype html>") {
+			t.Errorf("Debería contener la etiqueta doctype")
+		}
 
 		// Verificar que contenga los módulos HTML
-		assert.True(t, strings.Contains(htmlContent, "Test Module 1"), "Debería contener el módulo 1")
-		assert.True(t, strings.Contains(htmlContent, "Test Module 2"), "Debería contener el módulo 2")
+		if !strings.Contains(htmlContent, "Test Module 1") {
+			t.Errorf("Debería contener el módulo 1")
+		}
+		if !strings.Contains(htmlContent, "Test Module 2") {
+			t.Errorf("Debería contener el módulo 2")
+		}
 
 		// Verificar que contenga la etiqueta de cierre
-		assert.True(t, strings.Contains(htmlContent, "</html>"), "Debería contener la etiqueta de cierre HTML")
+		if !strings.Contains(htmlContent, "</html>") {
+			t.Errorf("Debería contener la etiqueta de cierre HTML")
+		}
 
 		// Probar eliminar un módulo 1
-		require.NoError(t, env.AssetsHandler.NewFileEvent("module1.html", ".html", modulePaths[0], "remove"))
+		if err := env.AssetsHandler.NewFileEvent("module1.html", ".html", modulePaths[0], "remove"); err != nil {
+			t.Fatalf("Error processing HTML module removal: %v", err)
+		}
 
 		// Verificar que el HTML actualizado no contiene el módulo eliminado
 		content, err = os.ReadFile(env.MainHtmlPath)
-		require.NoError(t, err, "Debería poder leer el archivo HTML actualizado")
+		if err != nil {
+			t.Fatalf("Debería poder leer el archivo HTML actualizado: %v", err)
+		}
 		htmlContent = string(content)
 
 		// El módulo eliminado no debería estar presente
-		assert.False(t, strings.Contains(htmlContent, "Test Module 1"), "No debería contener el módulo 1 eliminado")
-		assert.True(t, strings.Contains(htmlContent, "Test Module 2"), "Debería seguir conteniendo el módulo 2")
+		if strings.Contains(htmlContent, "Test Module 1") {
+			t.Errorf("No debería contener el módulo 1 eliminado")
+		}
+		if !strings.Contains(htmlContent, "Test Module 2") {
+			t.Errorf("Debería seguir conteniendo el módulo 2")
+		}
 
 		env.CleanDirectory()
 	})
@@ -118,7 +139,9 @@ func TestHtmlModulesIntegration(t *testing.T) {
 </html>`
 
 		templatePath := filepath.Join(env.ModulesDir, "template.html")
-		require.NoError(t, os.WriteFile(templatePath, []byte(templateContent), 0644))
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to write template HTML: %v", err)
+		}
 
 		// Crear un módulo HTML normal (fragmento sin estructura completa)
 		moduleContent := `<div class="module-test">
@@ -127,45 +150,73 @@ func TestHtmlModulesIntegration(t *testing.T) {
 </div>`
 
 		modulePath := filepath.Join(env.ModulesDir, "module1.html")
-		require.NoError(t, os.WriteFile(modulePath, []byte(moduleContent), 0644))
+		if err := os.WriteFile(modulePath, []byte(moduleContent), 0644); err != nil {
+			t.Fatalf("Failed to write module HTML: %v", err)
+		}
 
 		// Procesar el archivo template.html (que debería ser ignorado)
-		require.NoError(t, env.AssetsHandler.NewFileEvent("template.html", ".html", templatePath, "create"))
+		if err := env.AssetsHandler.NewFileEvent("template.html", ".html", templatePath, "create"); err != nil {
+			t.Fatalf("Error processing template event: %v", err)
+		}
 
 		// Procesar el módulo normal
-		require.NoError(t, env.AssetsHandler.NewFileEvent("module1.html", ".html", modulePath, "create"))
+		if err := env.AssetsHandler.NewFileEvent("module1.html", ".html", modulePath, "create"); err != nil {
+			t.Fatalf("Error processing module creation: %v", err)
+		}
 
 		// Verificar que el archivo HTML principal fue creado
-		require.FileExists(t, env.MainHtmlPath, "El archivo index.html debería haberse creado")
+		if _, err := os.Stat(env.MainHtmlPath); os.IsNotExist(err) {
+			t.Fatalf("El archivo index.html debería haberse creado at %s", env.MainHtmlPath)
+		}
 
 		// Leer el archivo generado
 		content, err := os.ReadFile(env.MainHtmlPath)
-		require.NoError(t, err, "Debería poder leer el archivo HTML generado")
+		if err != nil {
+			t.Fatalf("Debería poder leer el archivo HTML generado: %v", err)
+		}
 
 		htmlContent := string(content)
 
 		// Verificar que contiene el módulo normal
-		assert.True(t, strings.Contains(htmlContent, "Test Module"), "Debería contener el módulo normal")
-		assert.True(t, strings.Contains(htmlContent, "This is a normal module fragment"), "Debería contener el contenido del módulo normal")
+		if !strings.Contains(htmlContent, "Test Module") {
+			t.Errorf("Debería contener el módulo normal")
+		}
+		if !strings.Contains(htmlContent, "This is a normal module fragment") {
+			t.Errorf("Debería contener el contenido del módulo normal")
+		}
 
 		// VERIFICAR QUE EL TEMPLATE.HTML NO SE INCLUYE COMO MÓDULO
 		// No debe haber duplicación de estructura HTML
-		assert.False(t, strings.Contains(htmlContent, "Template Header"), "NO debería contener el contenido del template.html")
-		assert.False(t, strings.Contains(htmlContent, "This is a complete template file"), "NO debería contener el contenido del template.html")
-		assert.False(t, strings.Contains(htmlContent, "Template Footer"), "NO debería contener el footer del template.html")
+		if strings.Contains(htmlContent, "Template Header") {
+			t.Errorf("NO debería contener el contenido del template.html")
+		}
+		if strings.Contains(htmlContent, "This is a complete template file") {
+			t.Errorf("NO debería contener el contenido del template.html")
+		}
+		if strings.Contains(htmlContent, "Template Footer") {
+			t.Errorf("NO debería contener el footer del template.html")
+		}
 
 		// Verificar que el HTML generado tiene la estructura correcta (solo una vez)
 		doctypeCount := strings.Count(htmlContent, "<!doctype html>")
-		assert.Equal(t, 1, doctypeCount, "Solo debería haber un <!doctype html>")
+		if doctypeCount != 1 {
+			t.Errorf("Solo debería haber un <!doctype html>, got %d", doctypeCount)
+		}
 
 		htmlOpenCount := strings.Count(htmlContent, "<html>")
-		assert.Equal(t, 1, htmlOpenCount, "Solo debería haber una etiqueta <html>")
+		if htmlOpenCount != 1 {
+			t.Errorf("Solo debería haber una etiqueta <html>, got %d", htmlOpenCount)
+		}
 
 		bodyCloseCount := strings.Count(htmlContent, "</body>")
-		assert.Equal(t, 1, bodyCloseCount, "Solo debería haber una etiqueta de cierre </body>")
+		if bodyCloseCount != 1 {
+			t.Errorf("Solo debería haber una etiqueta de cierre </body>, got %d", bodyCloseCount)
+		}
 
 		htmlCloseCount := strings.Count(htmlContent, "</html>")
-		assert.Equal(t, 1, htmlCloseCount, "Solo debería haber una etiqueta de cierre </html>")
+		if htmlCloseCount != 1 {
+			t.Errorf("Solo debería haber una etiqueta de cierre </html>, got %d", htmlCloseCount)
+		}
 
 		t.Logf("HTML Content:\n%s", htmlContent)
 
