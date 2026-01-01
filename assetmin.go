@@ -100,14 +100,6 @@ func (c *AssetMin) writeMessage(messages ...any) {
 	c.Logger(messages...)
 }
 
-func fileExists(path string) string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	return string(data)
-}
-
 func (c *AssetMin) EnsureOutputDirectoryExists() {
 	outputDir := c.OutputDir
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
