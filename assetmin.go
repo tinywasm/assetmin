@@ -26,6 +26,7 @@ type AssetMin struct {
 	log                 func(message ...any)
 	goModHandler        *GoMod
 	onSSRCompile        func()
+	registeredIconIDs   map[string]bool
 }
 
 type Config struct {

@@ -154,6 +154,50 @@ func TestSvgSpriteStructure(t *testing.T) {
 	})
 }
 
+func TestAddIcon_Success(t *testing.T) {
+	env := setupTestEnv("add_icon_success", t)
+	am := env.AssetsHandler
+
+	err := am.addIcon("icon-1", `<path d="..."/>`)
+	if err != nil {
+		t.Errorf("Expected nil error, got %v", err)
+	}
+
+	if !am.registeredIconIDs["icon-1"] {
+		t.Errorf("Icon should be registered")
+	}
+
+	// Verify content in handler
+	found := false
+	for _, f := range am.spriteSvgHandler.contentMiddle {
+		if strings.Contains(string(f.content), `id="icon-1"`) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Icon content should be in spriteSvgHandler")
+	}
+}
+
+func TestAddIcon_Collision(t *testing.T) {
+	env := setupTestEnv("add_icon_collision", t)
+	am := env.AssetsHandler
+
+	err := am.addIcon("icon-duplicate", `<path d="..."/>`)
+	if err != nil {
+		t.Errorf("Expected nil error for first add, got %v", err)
+	}
+
+	err = am.addIcon("icon-duplicate", `<path d="..."/>`)
+	if err == nil {
+		t.Errorf("Expected error for duplicate icon, got nil")
+	}
+	if err.Error() != "icon already registered: icon-duplicate" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
 // Helper function to create test SVG icon files
 func createTestIcons(t *testing.T, dir string) []string {
 	icons := []struct {
