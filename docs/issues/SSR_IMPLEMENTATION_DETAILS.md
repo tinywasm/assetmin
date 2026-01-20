@@ -1,7 +1,7 @@
 # Feature: SSR Implementation Details
 
 ## Overview
-Server-Side Rendering (SSR) support for `tinydom` components injection into `index.html`.
+Server-Side Rendering (SSR) support for `tinywasm/dom` components injection into `index.html`.
 
 ## Related Documents
 - [FEATURE_HTTP_ROUTES_WORK_MODES.md](FEATURE_HTTP_ROUTES_WORK_MODES.md) - Work modes (SSR uses MemoryMode)
@@ -27,7 +27,7 @@ Server-Side Rendering (SSR) support for `tinydom` components injection into `ind
 // In assetmin/ssr.go
 
 // SSRModule represents a component that can be pre-rendered to HTML.
-// Compatible with tinydom Component interface.
+// Compatible with tinywasm/dom Component interface.
 type SSRModule interface {
     ModuleName() string   // Identifier for the module
     RenderHTML() string   // Returns pre-rendered HTML

@@ -16,6 +16,7 @@ func TestRegisterRoutes(t *testing.T) {
 		defer setup.cleanup()
 
 		am := NewAssetMin(setup.config)
+		am.goModHandler.SetRootPath(setup.outputDir)
 		mux := http.NewServeMux()
 		am.RegisterRoutes(mux)
 		server := httptest.NewServer(mux)
@@ -72,6 +73,7 @@ func TestRegisterRoutes(t *testing.T) {
 
 		setup.config.AssetsURLPrefix = "/static/"
 		am := NewAssetMin(setup.config)
+		am.goModHandler.SetRootPath(setup.outputDir)
 		mux := http.NewServeMux()
 		am.RegisterRoutes(mux)
 		server := httptest.NewServer(mux)
@@ -119,6 +121,7 @@ func TestWorks(t *testing.T) {
 		defer setup.cleanup()
 
 		am := NewAssetMin(setup.config)
+		am.goModHandler.SetRootPath(setup.outputDir)
 		am.SetBuildOnDisk(false)
 
 		err := am.NewFileEvent("test.css", ".css", setup.createTempFile("test.css", "body{color:red}"), "create")
@@ -138,6 +141,7 @@ func TestWorks(t *testing.T) {
 		defer setup.cleanup()
 
 		am := NewAssetMin(setup.config)
+		am.goModHandler.SetRootPath(setup.outputDir)
 		am.SetBuildOnDisk(true)
 
 		err := am.NewFileEvent("test.css", ".css", setup.createTempFile("test.css", "body{color:red}"), "create")
@@ -161,6 +165,7 @@ func TestWorks(t *testing.T) {
 
 		setup.config.AssetsURLPrefix = "/assets"
 		am := NewAssetMin(setup.config)
+		am.goModHandler.SetRootPath(setup.outputDir)
 		mux := http.NewServeMux()
 		am.RegisterRoutes(mux)
 		server := httptest.NewServer(mux)

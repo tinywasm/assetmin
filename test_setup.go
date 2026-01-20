@@ -78,6 +78,9 @@ func setupTestEnv(testCase string, t *testing.T, objects ...any) *TestEnvironmen
 	// Create asset handler; do NOT force WriteOnDisk here.
 	// The library should detect existing output files and enable writing itself.
 	assetsHandler := NewAssetMin(config)
+	// IMPORTANT: Set root path to the test directory to avoid detecting
+	// the package's own go.mod and activating SSR mode during tests
+	assetsHandler.goModHandler.SetRootPath(baseDir)
 	assetsHandler.SetLog(func(message ...any) {
 		t.Log(message...)
 	})

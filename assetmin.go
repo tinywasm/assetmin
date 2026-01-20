@@ -25,6 +25,7 @@ type AssetMin struct {
 	buildOnDisk         bool // Build assets to disk if true
 	log                 func(message ...any)
 	goModHandler        *GoMod
+	onSSRCompile        func()
 }
 
 type Config struct {
@@ -77,6 +78,9 @@ func NewAssetMin(ac *Config) *AssetMin {
 	c.min.AddFunc("image/svg+xml", svg.Minify)
 
 	c.mainJsHandler.initCode = c.startCodeJS
+
+	// Set SSR compile without doing anything
+	c.SetOnSSRCompile(func() {})
 
 	return c
 }

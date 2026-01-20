@@ -61,7 +61,7 @@ func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) err
 		return errors.New(e + "filePath is empty")
 	}
 
-	c.writeMessage(extension, event, "...", filePath)
+	c.writeMessage(event, filePath)
 
 	// Increase sleep duration significantly to allow file system operations (like write after rename) to settle
 	// fail when time is < 10ms
@@ -82,7 +82,12 @@ func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) err
 	}
 
 	if extension == ".mod" {
-		c.goModHandler.NewFileEvent(filePath, c.writeMessage)
+		return c.HandleModEvent(filePath)
+	}
+
+	// In SSR mode, delegate entirely to external server - skip memory updates
+	if c.isSSRMode() {
+		c.onSSRCompile()
 		return nil
 	}
 
