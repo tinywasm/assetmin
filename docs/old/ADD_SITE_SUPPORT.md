@@ -149,7 +149,7 @@ if err := am.RegisterComponents(modules.Init()...); err != nil {
 ```
 
 ---
-**Status**: Not Implemented
+**Status**: Implemented
 
 ---
 
