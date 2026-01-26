@@ -17,86 +17,47 @@ type IconProvider interface {
 	IconSvg() []map[string]string // Each map: {"id": "...", "svg": "<svg>...</svg>"}
 }
 
-// HTMLProvider indicates a component can render HTML (for SSR).
-type HTMLProvider interface {
-	RenderHTML() string
-}
-
 // AccessLevel is used to check permission for SSR injection.
 type AccessLevel interface {
 	AllowedRoles(action byte) []byte
 }
 
-// RegisterComponents iterates over the provided items and extracts assets.
-// It leverages existing handlers: mainStyleCssHandler, mainJsHandler, spriteSvgHandler, indexHtmlHandler.
-func (c *AssetMin) RegisterComponents(components ...any) error {
+// AddCSS appends CSS content to the bundle
+func (c *AssetMin) AddCSS(name, content string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	for _, comp := range components {
-		// CSS Extraction
-		if provider, ok := comp.(CSSProvider); ok {
-			css := provider.RenderCSS()
-			if css != "" {
-				c.mainStyleCssHandler.contentMiddle = append(
-					c.mainStyleCssHandler.contentMiddle,
-					&contentFile{path: "component.css", content: []byte(css)},
-				)
-				c.mainStyleCssHandler.cacheValid = false
-			}
-		}
-
-		// JS Extraction
-		if provider, ok := comp.(JSProvider); ok {
-			js := provider.RenderJS()
-			if js != "" {
-				c.mainJsHandler.contentMiddle = append(
-					c.mainJsHandler.contentMiddle,
-					&contentFile{path: "component.js", content: []byte(js)},
-				)
-				c.mainJsHandler.cacheValid = false
-			}
-		}
-
-		// Icon SVG Extraction (with collision detection)
-		if provider, ok := comp.(IconProvider); ok {
-			icons := provider.IconSvg()
-			for _, icon := range icons {
-				id := icon["id"]
-				svg := icon["svg"]
-				if err := c.addIcon(id, svg); err != nil {
-					return err // Fail-fast on collision or invalid icon
-				}
-			}
-		}
-
-		// HTML Extraction (SSR for public components)
-		if provider, ok := comp.(HTMLProvider); ok {
-			if isPublicReadable(comp) {
-				html := provider.RenderHTML()
-				if html != "" {
-					c.indexHtmlHandler.contentMiddle = append(
-						c.indexHtmlHandler.contentMiddle,
-						&contentFile{path: "component.html", content: []byte(html)},
-					)
-					c.indexHtmlHandler.cacheValid = false
-				}
-			}
-		}
-	}
-	return nil
+	c.mainStyleCssHandler.contentMiddle = append(
+		c.mainStyleCssHandler.contentMiddle,
+		&contentFile{path: name + ".css", content: []byte(content)},
+	)
+	c.mainStyleCssHandler.cacheValid = false
 }
 
-// isPublicReadable checks if the component allows public read access.
-// It looks for AllowedRoles('r') containing '*'.
-func isPublicReadable(comp any) bool {
-	if al, ok := comp.(AccessLevel); ok {
-		roles := al.AllowedRoles('r')
-		for _, r := range roles {
-			if r == '*' {
-				return true
-			}
-		}
-	}
-	return false
+// AddJS appends JS content (kept for future use)
+func (c *AssetMin) AddJS(name, content string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.mainJsHandler.contentMiddle = append(
+		c.mainJsHandler.contentMiddle,
+		&contentFile{path: name + ".js", content: []byte(content)},
+	)
+	c.mainJsHandler.cacheValid = false
+}
+
+// AddIcon adds an icon (public wrapper for addIcon)
+func (c *AssetMin) AddIcon(id, svg string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.addIcon(id, svg)
+}
+
+// InjectBodyContent appends HTML to the body
+func (c *AssetMin) InjectBodyContent(html string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.indexHtmlHandler.contentMiddle = append(
+		c.indexHtmlHandler.contentMiddle,
+		&contentFile{path: "injected.html", content: []byte(html)},
+	)
+	c.indexHtmlHandler.cacheValid = false
 }

@@ -1,16 +1,36 @@
 # Server-Side Rendering (SSR)
 
-`assetmin` supports basic SSR by injecting HTML content from registered components into the `index.html`.
+`assetmin` supports basic SSR by allowing external orchestrators (like `tinywasm/site`) to inject HTML content into the `index.html`.
 
 ## How it works
 
-When `RegisterComponents` is called, it checks if a component implements `HTMLProvider`.
+The orchestrator collects HTML fragments from components and injects them using:
 
 ```go
-type HTMLProvider interface {
-    RenderHTML() string
-}
+func (am *AssetMin) InjectBodyContent(html string)
 ```
+
+This method appends the provided HTML to the body of `index.html`, effectively pre-rendering the view for the client.
+
+## Requirements for Injection (SSR Mode)
+
+When using `tinywasm/site` as the orchestrator, the following conditions are enforced for a component's HTML to be automatically injected:
+
+1. **HTMLProvider**: Component implements `RenderHTML() string`
+2. **Public Access**: Component implements `AllowedRoles('r')` returning `*`
+3. **Module Identifier**: The **first line** of the HTML must contain the word `module` (case-insensitive)
+
+Example of valid HTML (will be injected):
+```html
+<div class="module-nav">
+    <nav>...</nav>
+</div>
+```
+
+---
+
+> [!NOTE]
+> `assetmin` itself no longer iterates over components to extract HTML. This logic has been moved to `tinywasm/site` to better separate asset bundling from application structure.
 
 ### Security / Access Control
 

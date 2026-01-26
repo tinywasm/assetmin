@@ -1,6 +1,7 @@
 package assetmin
 
 import (
+	"bytes"
 	"os"
 	"path"
 	"regexp"
@@ -24,8 +25,7 @@ type AssetMin struct {
 	min                 *minify.M
 	buildOnDisk         bool // Build assets to disk if true
 	log                 func(message ...any)
-	goModHandler        *GoMod
-	onSSRCompile        func()
+	onSSRCompile        func() error
 	registeredIconIDs   map[string]bool
 }
 
@@ -45,8 +45,6 @@ func NewAssetMin(ac *Config) *AssetMin {
 	if c.AppName == "" {
 		c.AppName = "MyApp"
 	}
-
-	c.goModHandler = NewGoMod()
 
 	jsMainFileName := "script.js"
 	cssMainFileName := "style.css"
@@ -80,9 +78,6 @@ func NewAssetMin(ac *Config) *AssetMin {
 
 	c.mainJsHandler.initCode = c.startCodeJS
 
-	// Set SSR compile without doing anything
-	c.SetOnSSRCompile(func() {})
-
 	return c
 }
 
@@ -101,7 +96,7 @@ func (c *AssetMin) Logger(messages ...any) {
 }
 
 func (c *AssetMin) SupportedExtensions() []string {
-	return []string{".js", ".css", ".svg", ".html", ".mod"}
+	return []string{".js", ".css", ".svg", ".html"}
 }
 
 func (c *AssetMin) writeMessage(messages ...any) {
@@ -136,21 +131,22 @@ func (c *AssetMin) RefreshAsset(extension string) {
 }
 
 // SetBuildOnDisk sets the work mode for AssetMin.
+// Deprecated: use SetExternalSSRCompiler instead to specify both callback and disk mode.
 func (c *AssetMin) SetBuildOnDisk(onDisk bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.buildOnDisk = onDisk
+	c.SetExternalSSRCompiler(c.onSSRCompile, onDisk)
+}
 
-	c.Logger("SetBuildOnDisk:", onDisk)
-
-	if onDisk {
-		// Ensure all assets are updated on disk immediately
-		c.processAsset(c.mainStyleCssHandler)
-		c.processAsset(c.mainJsHandler)
-		c.processAsset(c.spriteSvgHandler)
-		c.processAsset(c.faviconSvgHandler)
-		c.processAsset(c.indexHtmlHandler)
+func (c *AssetMin) processAssetSafe(fh *asset) error {
+	// 1. Always regenerate cache
+	if err := fh.RegenerateCache(c.min); err != nil {
+		return err
 	}
+
+	// 2. Write to disk ONLY if enabled AND file doesn't exist
+	if c.buildOnDisk {
+		return FileWriteSafe(fh.outputPath, *bytes.NewBuffer(fh.GetCachedMinified()))
+	}
+	return nil
 }
 
 // BuildOnDisk returns true if assets are written to disk.

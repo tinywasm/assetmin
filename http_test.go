@@ -16,7 +16,6 @@ func TestRegisterRoutes(t *testing.T) {
 		defer setup.cleanup()
 
 		am := NewAssetMin(setup.config)
-		am.goModHandler.SetRootPath(setup.outputDir)
 		mux := http.NewServeMux()
 		am.RegisterRoutes(mux)
 		server := httptest.NewServer(mux)
@@ -73,7 +72,6 @@ func TestRegisterRoutes(t *testing.T) {
 
 		setup.config.AssetsURLPrefix = "/static/"
 		am := NewAssetMin(setup.config)
-		am.goModHandler.SetRootPath(setup.outputDir)
 		mux := http.NewServeMux()
 		am.RegisterRoutes(mux)
 		server := httptest.NewServer(mux)
@@ -121,7 +119,6 @@ func TestWorks(t *testing.T) {
 		defer setup.cleanup()
 
 		am := NewAssetMin(setup.config)
-		am.goModHandler.SetRootPath(setup.outputDir)
 		am.SetBuildOnDisk(false)
 
 		err := am.NewFileEvent("test.css", ".css", setup.createTempFile("test.css", "body{color:red}"), "create")
@@ -141,7 +138,6 @@ func TestWorks(t *testing.T) {
 		defer setup.cleanup()
 
 		am := NewAssetMin(setup.config)
-		am.goModHandler.SetRootPath(setup.outputDir)
 		am.SetBuildOnDisk(true)
 
 		err := am.NewFileEvent("test.css", ".css", setup.createTempFile("test.css", "body{color:red}"), "create")
@@ -165,7 +161,6 @@ func TestWorks(t *testing.T) {
 
 		setup.config.AssetsURLPrefix = "/assets"
 		am := NewAssetMin(setup.config)
-		am.goModHandler.SetRootPath(setup.outputDir)
 		mux := http.NewServeMux()
 		am.RegisterRoutes(mux)
 		server := httptest.NewServer(mux)
@@ -188,6 +183,36 @@ func TestWorks(t *testing.T) {
 		}
 		if !strings.Contains(htmlContent, `src="/assets/script.js"`) {
 			t.Errorf("HTML should contain src=\"/assets/script.js\"")
+		}
+	})
+
+	t.Run("InjectBodyContent is served in index.html", func(t *testing.T) {
+		setup := newTestSetup(t)
+		defer setup.cleanup()
+
+		am := NewAssetMin(setup.config)
+
+		am.InjectBodyContent("<div id='custom'>Injected</div>")
+
+		mux := http.NewServeMux()
+		am.RegisterRoutes(mux)
+		server := httptest.NewServer(mux)
+		defer server.Close()
+
+		resp, err := http.Get(server.URL + "/")
+		if err != nil {
+			t.Fatalf("HTTP GET / failed: %v", err)
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Failed to read response body: %v", err)
+		}
+		resp.Body.Close()
+
+		htmlContent := string(body)
+		if !strings.Contains(htmlContent, "<div id='custom'>Injected</div>") {
+			t.Error("index.html should contain injected content")
 		}
 	})
 }

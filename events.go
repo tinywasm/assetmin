@@ -63,6 +63,11 @@ func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) err
 
 	c.writeMessage(event, filePath)
 
+	// In SSR mode, delegate to external server and return early
+	if c.isSSRMode() {
+		return c.onSSRCompile()
+	}
+
 	// Increase sleep duration significantly to allow file system operations (like write after rename) to settle
 	// fail when time is < 10ms
 	time.Sleep(20 * time.Millisecond) // Increased from 10ms
@@ -79,16 +84,6 @@ func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) err
 		if err != nil {
 			return errors.New(e + err.Error())
 		}
-	}
-
-	if extension == ".mod" {
-		return c.HandleModEvent(filePath)
-	}
-
-	// In SSR mode, delegate entirely to external server - skip memory updates
-	if c.isSSRMode() {
-		c.onSSRCompile()
-		return nil
 	}
 
 	fh, err := c.UpdateFileContentInMemory(filePath, extension, event, content) // Update contentMiddle

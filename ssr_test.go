@@ -1,6 +1,7 @@
 package assetmin
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -31,12 +32,8 @@ func TestSSRModeDelegation(t *testing.T) {
 		},
 	}
 	am := NewAssetMin(config)
-	am.goModHandler.SetRootPath(tmpDir)
 
 	ssrCompileCalled := false
-	am.SetOnSSRCompile(func() {
-		ssrCompileCalled = true
-	})
 
 	// Create a test JS file
 	jsPath := filepath.Join(tmpDir, "test.js")
@@ -60,32 +57,93 @@ func TestSSRModeDelegation(t *testing.T) {
 		}
 	})
 
-	// Test case: SSR mode - go.mod contains assetmin dependency.
+	// Test case: SSR mode - manually activated via SetExternalSSRCompiler.
 	// Expected: onSSRCompile is called. No internal processing.
 	t.Run("ssr mode delegates to external handler", func(t *testing.T) {
-		// Create go.mod with assetmin dependency to activate SSR mode
-		goModContent := `module test
-go 1.23
-require ` + PackageName + ` v0.0.1
-`
-		goModPath := filepath.Join(tmpDir, "go.mod")
-		err := os.WriteFile(goModPath, []byte(goModContent), 0644)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// Trigger go.mod event to update internal state
-		am.NewFileEvent("go.mod", ".mod", goModPath, "write")
+		ssrCompileCalled = false
+		am.SetExternalSSRCompiler(func() error {
+			ssrCompileCalled = true
+			return nil
+		}, false)
 
 		if !am.isSSRMode() {
-			t.Fatal("expected SSR mode to be active after go.mod update")
+			t.Fatal("expected SSR mode to be active after SetExternalSSRCompiler")
 		}
 
-		ssrCompileCalled = false
 		am.NewFileEvent("test.js", ".js", jsPath, "write")
 
 		if !ssrCompileCalled {
 			t.Errorf("expected onSSRCompile to be called in SSR mode")
+		}
+	})
+
+	// Test case: SSR mode with buildOnDisk=true.
+	// Expected:
+	// 1. Files are written to disk.
+	// 2. onSSRCompile is called.
+	// 3. Existing files are NOT overwritten on initialization (safe write).
+	// 4. Files ARE updated on subsequent watcher events.
+	t.Run("ssr mode with buildOnDisk=true handles safe write and updates", func(t *testing.T) {
+		outputDir := filepath.Join(tmpDir, "ssr_disk_test")
+		config := &Config{
+			OutputDir: outputDir,
+			GetRuntimeInitializerJS: func() (string, error) {
+				return "init();", nil
+			},
+		}
+		am := NewAssetMin(config)
+
+		// Create a "pre-existing" file in output dir
+		err := os.MkdirAll(outputDir, 0755)
+		if err != nil {
+			t.Fatal(err)
+		}
+		existingFile := filepath.Join(outputDir, "style.css")
+		existingContent := "/* preserved */"
+		os.WriteFile(existingFile, []byte(existingContent), 0644)
+
+		ssrCompileCalled := false
+		am.SetExternalSSRCompiler(func() error {
+			ssrCompileCalled = true
+			return nil
+		}, true)
+
+		if !ssrCompileCalled {
+			t.Error("expected onSSRCompile to be called immediately")
+		}
+
+		// Verify safe write: style.css should NOT have been overwritten
+		content, _ := os.ReadFile(existingFile)
+		if string(content) != existingContent {
+			t.Errorf("expected existing file to be preserved, got %s", string(content))
+		}
+
+		// Verify other files WERE written (since they didn't exist)
+		jsFile := filepath.Join(outputDir, "script.js")
+		if _, err := os.Stat(jsFile); os.IsNotExist(err) {
+			t.Error("expected script.js to be created")
+		}
+
+		// Verify watcher update: subsequent NewFileEvent SHOULD trigger callback but NOT overwrite in SSR mode
+		newJSContent := "var updated = true;"
+		sourceJS := filepath.Join(tmpDir, "source.js")
+		os.WriteFile(sourceJS, []byte(newJSContent), 0644)
+
+		ssrCompileCalled = false
+		err = am.NewFileEvent("source.js", ".js", sourceJS, "write")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !ssrCompileCalled {
+			t.Error("expected onSSRCompile to be called on watcher event")
+		}
+
+		// Verify script.js was NOT updated (because NewFileEvent returns early in SSR mode)
+		// It should still have the content from the initial safe build (or empty if it didn't exist)
+		content, _ = os.ReadFile(jsFile)
+		if bytes.Contains(content, []byte("updated")) {
+			t.Errorf("expected script.js NOT to be updated by watcher in SSR mode, but it was")
 		}
 	})
 }
