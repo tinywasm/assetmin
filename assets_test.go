@@ -52,6 +52,10 @@ func TestAssetScenario(t *testing.T) {
 		// que el contenido sea eliminado cuando se elimina el archivo
 		env := setupTestEnv("uc02_crud_operations", t)
 		env.AssetsHandler.SetBuildOnDisk(true)
+		env.AssetsHandler.GetSSRClientInitJS = func() (string, error) {
+			return "console.log('init');", nil
+		}
+
 		// Probar operaciones CRUD para archivos JS
 		t.Run("js_file", func(t *testing.T) {
 			env.TestFileCRUDOperations(".js")

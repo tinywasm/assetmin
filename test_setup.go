@@ -51,8 +51,8 @@ func setupTestEnv(testCase string, t *testing.T, objects ...any) *TestEnvironmen
 	// Create asset configuration with logging using t.Log
 	config := &Config{
 		OutputDir: publicDir,
-		GetRuntimeInitializerJS: func() (string, error) {
-			return "", nil
+		GetSSRClientInitJS: func() (string, error) {
+			return "console.log('init');", nil
 		},
 	}
 
@@ -71,7 +71,7 @@ func setupTestEnv(testCase string, t *testing.T, objects ...any) *TestEnvironmen
 
 		// add WebAssembly initialization code when a function is provided
 		if funcInitJs, ok := obj.(func() (string, error)); ok {
-			config.GetRuntimeInitializerJS = funcInitJs
+			config.GetSSRClientInitJS = funcInitJs
 		}
 	}
 

@@ -20,8 +20,8 @@ func newTestSetup(t *testing.T) *testSetup {
 
 	config := &Config{
 		OutputDir: outputDir,
-		GetRuntimeInitializerJS: func() (string, error) {
-			return "", nil
+		GetSSRClientInitJS: func() (string, error) {
+			return "console.log('init');", nil
 		},
 	}
 

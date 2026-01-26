@@ -30,11 +30,11 @@ type AssetMin struct {
 }
 
 type Config struct {
-	OutputDir               string                 // eg: web/static, web/public, web/assets
-	GetRuntimeInitializerJS func() (string, error) // javascript code to initialize the wasm or other handlers
-	AppName                 string                 // Application name for templates (default: "MyApp")
-	AssetsURLPrefix         string                 // New: for HTTP routes
-	DevMode                 bool                   // If true, disables caching (default: false)
+	OutputDir          string                 // eg: web/static, web/public, web/assets
+	GetSSRClientInitJS func() (string, error) // javascript code to initialize the wasm or other handlers
+	AppName            string                 // Application name for templates (default: "MyApp")
+	AssetsURLPrefix    string                 // New: for HTTP routes
+	DevMode            bool                   // If true, disables caching (default: false)
 }
 
 func NewAssetMin(ac *Config) *AssetMin {
@@ -54,7 +54,7 @@ func NewAssetMin(ac *Config) *AssetMin {
 	htmlMainFileName := "index.html"
 
 	c.mainStyleCssHandler = newAssetFile(cssMainFileName, "text/css", ac, nil)
-	c.mainJsHandler = newAssetFile(jsMainFileName, "text/javascript", ac, ac.GetRuntimeInitializerJS)
+	c.mainJsHandler = newAssetFile(jsMainFileName, "text/javascript", ac, ac.GetSSRClientInitJS)
 	c.spriteSvgHandler = NewSvgHandler(ac, svgMainFileName)
 	c.faviconSvgHandler = NewFaviconSvgHandler(ac, svgFaviconFileName)
 

@@ -27,8 +27,8 @@ func TestSSRModeDelegation(t *testing.T) {
 
 	config := &Config{
 		OutputDir: filepath.Join(tmpDir, "dist"),
-		GetRuntimeInitializerJS: func() (string, error) {
-			return "", nil // No init code needed for this test
+		GetSSRClientInitJS: func() (string, error) {
+			return "init();", nil // No init code needed for this test
 		},
 	}
 	am := NewAssetMin(config)
@@ -87,8 +87,8 @@ func TestSSRModeDelegation(t *testing.T) {
 		outputDir := filepath.Join(tmpDir, "ssr_disk_test")
 		config := &Config{
 			OutputDir: outputDir,
-			GetRuntimeInitializerJS: func() (string, error) {
-				return "init();", nil
+			GetSSRClientInitJS: func() (string, error) {
+				return "console.log('init');", nil
 			},
 		}
 		am := NewAssetMin(config)

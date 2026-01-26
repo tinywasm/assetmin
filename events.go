@@ -123,11 +123,11 @@ func (c *AssetMin) UnobservedFiles() []string {
 func (c *AssetMin) startCodeJS() (out string, err error) {
 	out = "'use strict';"
 
-	if c.GetRuntimeInitializerJS == nil {
+	if c.GetSSRClientInitJS == nil {
 		return out, nil
 	}
 
-	js, err := c.GetRuntimeInitializerJS() // wasm js code
+	js, err := c.GetSSRClientInitJS() // wasm js code
 	if err != nil {
 		return "", errors.New("startCodeJS " + err.Error())
 	}

@@ -19,13 +19,13 @@ func TestOutputFileHandling(t *testing.T) {
 		env.CreatePublicDir() // Ensure public directory exists
 
 		// Desactivar el código de inicialización durante esta prueba para evitar conflictos
-		originalInitFunc := env.AssetsHandler.GetRuntimeInitializerJS
-		env.AssetsHandler.GetRuntimeInitializerJS = func() (string, error) {
-			return "", nil
+		originalInitFunc := env.AssetsHandler.GetSSRClientInitJS
+		env.AssetsHandler.GetSSRClientInitJS = func() (string, error) {
+			return "console.log('init');", nil
 		}
 		defer func() {
 			// Restaurar la función original al finalizar
-			env.AssetsHandler.GetRuntimeInitializerJS = originalInitFunc
+			env.AssetsHandler.GetSSRClientInitJS = originalInitFunc
 		}()
 
 		// Create an initial JS file to ensure main.js is created
