@@ -34,6 +34,7 @@ type Config struct {
 	GetRuntimeInitializerJS func() (string, error) // javascript code to initialize the wasm or other handlers
 	AppName                 string                 // Application name for templates (default: "MyApp")
 	AssetsURLPrefix         string                 // New: for HTTP routes
+	DevMode                 bool                   // If true, disables caching (default: false)
 }
 
 func NewAssetMin(ac *Config) *AssetMin {

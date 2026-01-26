@@ -22,7 +22,19 @@ func (c *AssetMin) serveAsset(asset *asset) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", asset.mediatype)
-		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+
+		if c.DevMode {
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		} else {
+			// Production: Strong cache
+			// Since content includes hash in filename usually, or we want aggressive caching
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			// We can also add ETag if we wanted to be safer, but max-age is better for performance if filenames change
+			// For now, let's use ETag as a fallback if filenames don't change
+			// ethag := fmt.Sprintf(`"%x"`, md5.Sum(content))
+			// w.Header().Set("ETag", ethag)
+		}
+
 		_, _ = w.Write(content)
 	}
 }
