@@ -192,7 +192,7 @@ func TestWorks(t *testing.T) {
 
 		am := NewAssetMin(setup.config)
 
-		am.InjectBodyContent("<div id='custom'>Injected</div>")
+		am.InjectHTML("<div id='custom'>Injected</div>")
 
 		mux := http.NewServeMux()
 		am.RegisterRoutes(mux)
