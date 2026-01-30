@@ -2,29 +2,6 @@ package assetmin
 
 import "strings"
 
-// isCompleteHtmlDocument checks if the content represents a complete HTML document
-// rather than an HTML fragment/module. Complete documents have doctype, html, and body tags.
-func isCompleteHtmlDocument(content string) bool {
-	contentLower := strings.ToLower(content)
-
-	// Check for doctype declaration
-	hasDoctype := strings.Contains(contentLower, "<!doctype html>") ||
-		strings.Contains(contentLower, "<!doctype html ")
-
-	// Check for html opening tag
-	hasHtmlOpen := strings.Contains(contentLower, "<html>") ||
-		strings.Contains(contentLower, "<html ")
-
-	// Check for body closing tag
-	hasBodyClose := strings.Contains(contentLower, "</body>")
-
-	// Check for html closing tag
-	hasHtmlClose := strings.Contains(contentLower, "</html>")
-
-	// If it has all these elements, it's a complete HTML document
-	return hasDoctype && hasHtmlOpen && hasBodyClose && hasHtmlClose
-}
-
 type htmlHandler struct {
 	*asset
 	cssURL string
@@ -133,28 +110,5 @@ func parseExistingHtmlContent(content string) (openContent, closeContent string)
 		splitIndex = len(lines)
 	}
 
-	// Filtrar contenido de módulos existentes del openContent
-	openLines := lines[:splitIndex]
-	filteredOpenLines := make([]string, 0, len(openLines))
-
-	for _, line := range openLines {
-		// Omitir líneas que parecen ser módulos HTML
-		lineTrimmed := strings.TrimSpace(line)
-		// Detectar divs con clases de módulos o contenido específico
-		if strings.Contains(lineTrimmed, `class="module-`) ||
-			strings.Contains(lineTrimmed, `class="theme-`) ||
-			strings.Contains(lineTrimmed, `class=\"module-`) ||
-			strings.Contains(lineTrimmed, `class=\"theme-`) ||
-			strings.Contains(lineTrimmed, "Theme Index Content") ||
-			strings.Contains(lineTrimmed, "Test Module") {
-			continue
-		}
-		// También omitir líneas vacías consecutivas que puedan resultar del filtrado
-		if lineTrimmed == "" && len(filteredOpenLines) > 0 && strings.TrimSpace(filteredOpenLines[len(filteredOpenLines)-1]) == "" {
-			continue
-		}
-		filteredOpenLines = append(filteredOpenLines, line)
-	}
-
-	return strings.Join(filteredOpenLines, "\n"), strings.Join(lines[splitIndex:], "\n")
+	return strings.Join(lines[:splitIndex], "\n"), strings.Join(lines[splitIndex:], "\n")
 }

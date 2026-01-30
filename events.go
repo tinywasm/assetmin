@@ -47,6 +47,11 @@ func (c *AssetMin) UpdateFileContentInMemory(filePath, extension, event string, 
 
 // event: create, remove, write, rename
 func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) error {
+	// In SSR mode, delegate to external server and return early
+	if c.isSSRMode() {
+		return c.onSSRCompile()
+	}
+
 	// Check if filePath matches any of our output paths to avoid infinite recursion
 	if c.isOutputPath(filePath) {
 		//c.writeMessage("Skipping output file:", filePath)
@@ -62,11 +67,6 @@ func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) err
 	}
 
 	c.writeMessage(event, filePath)
-
-	// In SSR mode, delegate to external server and return early
-	if c.isSSRMode() {
-		return c.onSSRCompile()
-	}
 
 	// Increase sleep duration significantly to allow file system operations (like write after rename) to settle
 	// fail when time is < 10ms

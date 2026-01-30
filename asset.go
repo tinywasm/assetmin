@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 
 	"github.com/tdewolff/minify/v2"
@@ -67,17 +66,6 @@ func (h *asset) UpdateContent(filePath, event string, f *contentFile) (err error
 	h.InvalidateCache()
 	// por defecto los archivos de destino son contenido comun eg: modulos, archivos sueltos
 	filesToUpdate := &h.contentMiddle
-
-	// Para archivos HTML, verificar si es un documento HTML completo
-	// Si es así, debe ser ignorado ya que no es un módulo/fragmento
-	if strings.HasSuffix(h.fileOutputName, ".html") && strings.HasSuffix(filePath, ".html") {
-		// Verificar si el contenido es un documento HTML completo
-		if isCompleteHtmlDocument(string(f.content)) {
-			// Es un documento completo (template), ignorarlo
-			// No procesamos templates como módulos
-			return nil
-		}
-	}
 
 	switch event {
 	case "create", "write", "modify":
