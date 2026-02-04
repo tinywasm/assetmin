@@ -2,6 +2,7 @@ package assetmin
 
 import (
 	"net/http"
+	"strings"
 )
 
 // RegisterRoutes registers the HTTP handlers for all assets.
@@ -23,7 +24,8 @@ func (c *AssetMin) serveAsset(asset *asset) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", asset.mediatype)
 
-		if c.DevMode {
+		// Robust check for HTML/JS regardless of charset
+		if c.DevMode || strings.Contains(asset.mediatype, "text/html") || strings.Contains(asset.mediatype, "application/javascript") {
 			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		} else {
 			// Production: Strong cache

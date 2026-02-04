@@ -45,7 +45,7 @@ func (c *AssetMin) addIcon(id string, svgContent string) error {
 	c.registeredIconIDs[id] = true
 
 	// Wrap SVG content as a <symbol> for the sprite
-	symbolContent := `<symbol id="` + id + `">` + svgContent + `</symbol>`
+	symbolContent := `<symbol id="` + id + `" viewBox="0 0 16 16">` + svgContent + `</symbol>`
 
 	c.spriteSvgHandler.contentMiddle = append(
 		c.spriteSvgHandler.contentMiddle,

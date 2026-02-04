@@ -79,6 +79,19 @@ func NewAssetMin(ac *Config) *AssetMin {
 
 	c.mainJsHandler.initCode = c.startCodeJS
 
+	// Automatic Sprite Injection:
+	// Link the Sprite Handler to the HTML Handler so the sprite is injected dynamically
+	// into the HTML body. This avoids manual injection in build scripts.
+	c.indexHtmlHandler.AddDynamicContent(func() []byte {
+		// Attempt to get the latest minified sprite content
+		content, err := c.spriteSvgHandler.GetMinifiedContent(c.min)
+		if err != nil {
+			c.Logger("Error getting sprite content for auto-injection:", err)
+			return nil
+		}
+		return content
+	})
+
 	return c
 }
 
@@ -121,6 +134,8 @@ func (c *AssetMin) RefreshAsset(extension string) {
 		fh = c.mainJsHandler
 	case ".css":
 		fh = c.mainStyleCssHandler
+	case ".html":
+		fh = c.indexHtmlHandler
 	case ".svg":
 	}
 

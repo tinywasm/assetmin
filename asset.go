@@ -22,6 +22,8 @@ type asset struct {
 	contentMiddle []*contentFile //eg: files from modules folder
 	contentClose  []*contentFile // eg: files js from testin or end tags
 
+	dynamicContent []func() []byte // Dynamic content providers
+
 	mu             sync.RWMutex // Mutex for thread-safe access to the cache
 	cachedMinified []byte       // Minified content ready to serve
 	cacheValid     bool         // True if cache matches current content
@@ -31,6 +33,14 @@ type asset struct {
 type contentFile struct {
 	path    string // eg: modules/module1/file.js
 	content []byte /// eg: "console.log('hello world')"
+}
+
+// AddDynamicContent adds a function that generates content dynamically during WriteContent
+func (h *asset) AddDynamicContent(fn func() []byte) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.dynamicContent = append(h.dynamicContent, fn)
+	h.cacheValid = false
 }
 
 // WriteToDisk writes the content file to disk at the specified path
@@ -126,6 +136,12 @@ func (h *asset) WriteContent(buf *bytes.Buffer) {
 	for _, f := range h.contentOpen {
 		buf.Write(f.content)
 		buf.WriteString("\n") // Add newline between files
+	}
+
+	// Write dynamic content
+	for _, fn := range h.dynamicContent {
+		buf.Write(fn())
+		buf.WriteString("\n")
 	}
 
 	// Then write middle content files
