@@ -83,6 +83,7 @@ func NewAssetMin(ac *Config) *AssetMin {
 	// Link the Sprite Handler to the HTML Handler so the sprite is injected dynamically
 	// into the HTML body. This avoids manual injection in build scripts.
 	c.indexHtmlHandler.AddDynamicContent(func() []byte {
+
 		// Attempt to get the latest minified sprite content
 		content, err := c.spriteSvgHandler.GetMinifiedContent(c.min)
 		if err != nil {

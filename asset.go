@@ -71,9 +71,21 @@ func newAssetFile(outputName, mediaType string, ac *Config, initCode func() (str
 	return handler
 }
 
+// AddContentMiddle safely appends content to the middle section under a lock
+func (h *asset) AddContentMiddle(path string, content []byte) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.contentMiddle = append(h.contentMiddle, &contentFile{path: path, content: content})
+	h.cacheValid = false
+}
+
 // assetHandlerFiles ej &mainJsHandler, &mainStyleCssHandler
 func (h *asset) UpdateContent(filePath, event string, f *contentFile) (err error) {
-	h.InvalidateCache()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.cacheValid = false // direct field access under lock instead of calling InvalidateCache which locks again
+
 	// por defecto los archivos de destino son contenido comun eg: modulos, archivos sueltos
 	filesToUpdate := &h.contentMiddle
 
