@@ -123,7 +123,7 @@ func TestFaviconProcessing(t *testing.T) {
 		}
 
 		// Verify sprite output
-		outputSpritePath := filepath.Join(env.PublicDir, "sprite.svg")
+		outputSpritePath := filepath.Join(env.PublicDir, "icons.svg")
 		if _, err := os.Stat(outputSpritePath); os.IsNotExist(err) {
 			t.Fatalf("Sprite output should exist at %s", outputSpritePath)
 		}

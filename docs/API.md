@@ -126,7 +126,7 @@ Creates and initializes a new AssetMin instance with the following assets:
 
 - `script.js` - Main JavaScript bundle
 - `style.css` - Main CSS bundle
-- `sprite.svg` - SVG sprite for icons
+- `icons.svg` - SVG sprite for icons
 - `favicon.svg` - Favicon handler
 - `index.html` - Main HTML page
 
@@ -177,7 +177,7 @@ am.RegisterRoutes(mux)
 // GET /              -> index.html
 // GET /assets/style.css   -> style.css (if AssetsURLPrefix="/assets/")
 // GET /assets/script.js   -> script.js
-// GET /assets/sprite.svg  -> sprite.svg
+// GET /assets/icons.svg  -> icons.svg
 // GET /assets/favicon.svg -> favicon.svg
 ```
 
@@ -236,7 +236,7 @@ func (c *AssetMin) EnsureOutputDirectoryExists()
 ### SVG Assets
 
 #### Sprite SVG
-- **Output**: `sprite.svg`
+- **Output**: `icons.svg`
 - **Purpose**: Icon sprite sheet
 - **Features**:
   - Multiple SVG files combined into single sprite
@@ -287,7 +287,7 @@ Asset URLs are determined by the `AssetsURLPrefix` configuration:
 | index.html | `/` | `/` |
 | style.css | `/style.css` | `/assets/style.css` |
 | script.js | `/script.js` | `/assets/script.js` |
-| sprite.svg | `/sprite.svg` | `/assets/sprite.svg` |
+| icons.svg | `/icons.svg` | `/assets/icons.svg` |
 | favicon.svg | `/favicon.svg` | `/assets/favicon.svg` |
 
 **Note**: `index.html` is always served at the root path `/`.
@@ -319,7 +319,7 @@ AssetMin automatically ignores events for its own output files to prevent infini
 // These files are ignored when detected as event sources:
 // - web/public/script.js
 // - web/public/style.css
-// - web/public/sprite.svg
+// - web/public/icons.svg
 // - web/public/favicon.svg
 // - web/public/index.html
 ```

@@ -15,7 +15,7 @@ am.RegisterRoutes(myMux)
 - `/`: Serves `index.html`.
 - `/{AssetsURLPrefix}/style.css`: Serves bundled CSS.
 - `/{AssetsURLPrefix}/script.js`: Serves bundled JS.
-- `/{AssetsURLPrefix}/sprite.svg`: Serves SVG sprite.
+- `/{AssetsURLPrefix}/icons.svg`: Serves SVG sprite.
 - `/{AssetsURLPrefix}/favicon.svg`: Serves favicon.
 
 ## Caching

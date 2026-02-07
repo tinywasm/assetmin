@@ -20,8 +20,8 @@ type JSProvider interface {
     RenderJS() string
 }
 
-type IconProvider interface {
-    IconSvg() []map[string]string // Each map: {"id": "...", "svg": "<svg>...</svg>"}
+type IconSvgProvider interface {
+    IconSvg() map[string]string // map[id]svg_content
 }
 
 // RegisterComponents iterates over the provided items and extracts assets.
@@ -56,7 +56,7 @@ func (c *AssetMin) RegisterComponents(components ...any) error {
         }
 
         // Icon SVG Extraction (with collision detection)
-        if provider, ok := comp.(IconProvider); ok {
+        if provider, ok := comp.(IconSvgProvider); ok {
             icons := provider.IconSvg()
             for _, icon := range icons {
                 id := icon["id"]

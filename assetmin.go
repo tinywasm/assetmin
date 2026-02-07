@@ -49,7 +49,7 @@ func NewAssetMin(ac *Config) *AssetMin {
 
 	jsMainFileName := "script.js"
 	cssMainFileName := "style.css"
-	svgMainFileName := "sprite.svg"
+	svgMainFileName := "icons.svg"
 	svgFaviconFileName := "favicon.svg"
 	htmlMainFileName := "index.html"
 

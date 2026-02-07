@@ -12,7 +12,7 @@
 - **Source**: `.js` files in modules or registered components.
 - **Processing**: Minified using `tdewolff/minify/js`. Supports "use strict" removal and runtime wrapper injection.
 
-## SVG Sprites (`sprite.svg`)
+## SVG Sprites (`icons.svg`)
 - **Handler**: `spriteSvgHandler`
 - **Source**: Individual `.svg` icons.
 - **Processing**: Wrapped in `<symbol>` tags and combined into a single sprite sheet.

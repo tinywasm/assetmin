@@ -27,8 +27,8 @@ type JSProvider interface {
 
 ### SVG Icons
 ```go
-type IconProvider interface {
-    IconSvg() []map[string]string // [{"id": "...", "svg": "..."}]
+type IconSvgProvider interface {
+    IconSvg() map[string]string // {"id": "<svg>...</svg>"}
 }
 ```
 

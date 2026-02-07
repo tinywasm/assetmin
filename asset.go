@@ -12,7 +12,7 @@ import (
 
 // represents a file handler for processing and minifying assets
 type asset struct {
-	fileOutputName string                 // eg: main.js,style.css,index.html,sprite.svg
+	fileOutputName string                 // eg: main.js,style.css,index.html,icons.svg
 	outputPath     string                 // full path to output file eg: web/public/main.js
 	urlPath        string                 // HTTP route path, e.g., "/assets/style.css" or "/style.css"
 	mediatype      string                 // eg: "text/html", "text/css", "image/svg+xml"

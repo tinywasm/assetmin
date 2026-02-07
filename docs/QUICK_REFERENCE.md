@@ -48,7 +48,7 @@ Routes registered:
 - `GET /` → index.html
 - `GET /assets/style.css` → style.css
 - `GET /assets/script.js` → script.js
-- `GET /assets/sprite.svg` → sprite.svg
+- `GET /assets/icons.svg` → icons.svg
 - `GET /assets/favicon.svg` → favicon.svg
 
 ## Work Modes
@@ -166,7 +166,7 @@ func main() {
 - Minified
 
 ### SVG
-- Sprite: `sprite.svg` (icon collection)
+- Sprite: `icons.svg` (icon collection)
 - Favicon: `favicon.svg` (single icon)
 
 ### HTML
