@@ -25,7 +25,7 @@ func (c *AssetMin) serveAsset(asset *asset) http.HandlerFunc {
 		w.Header().Set("Content-Type", asset.mediatype)
 
 		// Robust check for HTML/JS regardless of charset
-		if c.DevMode || strings.Contains(asset.mediatype, "text/html") || strings.Contains(asset.mediatype, "application/javascript") {
+		if c.DevMode || strings.Contains(asset.mediatype, "text/html") || strings.Contains(asset.mediatype, "application/javascript") || strings.Contains(asset.mediatype, "text/javascript") {
 			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		} else {
 			// Production: Strong cache
