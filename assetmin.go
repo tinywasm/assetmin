@@ -64,7 +64,7 @@ func NewAssetMin(ac *Config) *AssetMin {
 	c.spriteSvgHandler.urlPath = path.Join("/", ac.AssetsURLPrefix, svgMainFileName)
 	c.faviconSvgHandler.urlPath = path.Join("/", ac.AssetsURLPrefix, svgFaviconFileName)
 
-	c.indexHtmlHandler = NewHtmlHandler(ac, htmlMainFileName, c.mainStyleCssHandler.URLPath(), c.mainJsHandler.URLPath())
+	c.indexHtmlHandler = NewHtmlHandler(ac, htmlMainFileName, c.mainStyleCssHandler.URLPath(), c.mainJsHandler.URLPath(), c.faviconSvgHandler.URLPath())
 	c.indexHtmlHandler.urlPath = "/" // Index is always at root
 	c.min.Add("text/html", &html.Minifier{
 		KeepDocumentTags: true,

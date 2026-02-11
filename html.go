@@ -4,8 +4,14 @@ import "strings"
 
 type htmlHandler struct {
 	*asset
-	cssURL string
-	jsURL  string
+	cssURL     string
+	jsURL      string
+	faviconURL string
+}
+
+// generateFaviconLink returns HTML tag for linking the favicon
+func (h *htmlHandler) generateFaviconLink() []byte {
+	return []byte(`<link rel="icon" type="image/svg+xml" href="` + h.faviconURL + `">`)
 }
 
 // generateStylesheetLink returns HTML tag for linking a CSS stylesheet
@@ -19,13 +25,14 @@ func (h *htmlHandler) generateJavaScriptTag() []byte {
 }
 
 // NewHtmlHandler creates an HTML asset handler using the provided output filename
-func NewHtmlHandler(ac *Config, outputName, cssURL, jsURL string) *asset {
+func NewHtmlHandler(ac *Config, outputName, cssURL, jsURL, faviconURL string) *asset {
 	af := newAssetFile(outputName, "text/html", ac, nil)
 
 	hh := &htmlHandler{
-		asset:  af,
-		cssURL: cssURL,
-		jsURL:  jsURL,
+		asset:      af,
+		cssURL:     cssURL,
+		jsURL:      jsURL,
+		faviconURL: faviconURL,
 	}
 	//  default marcador de inicio index HTML
 	af.contentOpen = append(af.contentOpen, &contentFile{
@@ -36,6 +43,7 @@ func NewHtmlHandler(ac *Config, outputName, cssURL, jsURL string) *asset {
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title></title>
+	` + string(hh.generateFaviconLink()) + `
 	` + string(hh.generateStylesheetLink()) + `
 </head>
 <body>`),
