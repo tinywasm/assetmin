@@ -64,8 +64,6 @@ func setupTestEnv(testCase string, t *testing.T, objects ...any) *TestEnvironmen
 		if file, ok := obj.(*contentFile); ok {
 			if err := file.WriteToDisk(); err != nil {
 				t.Logf("Error writing contentFile to disk: %v", err)
-			} else {
-				t.Logf("Successfully wrote file to %s", file.path)
 			}
 		}
 
@@ -77,9 +75,6 @@ func setupTestEnv(testCase string, t *testing.T, objects ...any) *TestEnvironmen
 
 	// Create asset handler.
 	assetsHandler := NewAssetMin(config)
-	assetsHandler.SetLog(func(message ...any) {
-		t.Log(message...)
-	})
 
 	// Create only the base directory if it doesn't exist
 	err := os.MkdirAll(baseDir, 0755)

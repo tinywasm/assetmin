@@ -1,6 +1,8 @@
 package assetmin
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -240,5 +242,41 @@ func TestFaviconProcessing(t *testing.T) {
 		}
 
 		env.CleanDirectory()
+	})
+}
+
+func TestFaviconCacheHeaders(t *testing.T) {
+	t.Run("favicon_immutable_in_dev_mode", func(t *testing.T) {
+		setup := newTestSetup(t)
+		defer setup.cleanup()
+
+		setup.config.DevMode = true
+		am := NewAssetMin(setup.config)
+
+		// Add favicon content
+		faviconPath := setup.createTempFile("favicon.svg", `<svg xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40"/></svg>`)
+		if err := am.NewFileEvent("favicon.svg", ".svg", faviconPath, "create"); err != nil {
+			t.Fatalf("Error processing favicon event: %v", err)
+		}
+
+		mux := http.NewServeMux()
+		am.RegisterRoutes(mux)
+		server := httptest.NewServer(mux)
+		defer server.Close()
+
+		// favicon URL without prefix = "/favicon.svg"
+		resp, err := http.Get(server.URL + "/favicon.svg")
+		if err != nil {
+			t.Fatalf("HTTP GET favicon failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		cc := resp.Header.Get("Cache-Control")
+		if strings.Contains(cc, "no-store") || strings.Contains(cc, "no-cache") {
+			t.Errorf("Favicon should NOT have no-cache in DevMode, got: %q", cc)
+		}
+		if !strings.Contains(cc, "max-age") && !strings.Contains(cc, "immutable") {
+			t.Errorf("Favicon should have immutable/max-age cache, got: %q", cc)
+		}
 	})
 }

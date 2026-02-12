@@ -25,16 +25,15 @@ func (c *AssetMin) serveAsset(asset *asset) http.HandlerFunc {
 		w.Header().Set("Content-Type", asset.mediatype)
 
 		// Robust check for HTML/JS regardless of charset
-		if c.DevMode || strings.Contains(asset.mediatype, "text/html") || strings.Contains(asset.mediatype, "application/javascript") || strings.Contains(asset.mediatype, "text/javascript") {
+		isDevMutableText := c.DevMode && strings.Contains(asset.mediatype, "text/")
+		if isDevMutableText ||
+			strings.Contains(asset.mediatype, "text/html") ||
+			strings.Contains(asset.mediatype, "application/javascript") ||
+			strings.Contains(asset.mediatype, "text/javascript") {
 			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		} else {
-			// Production: Strong cache
-			// Since content includes hash in filename usually, or we want aggressive caching
+			// Production or non-text assets (images, fonts, etc.): Strong cache
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-			// We can also add ETag if we wanted to be safer, but max-age is better for performance if filenames change
-			// For now, let's use ETag as a fallback if filenames don't change
-			// ethag := fmt.Sprintf(`"%x"`, md5.Sum(content))
-			// w.Header().Set("ETag", ethag)
 		}
 
 		_, _ = w.Write(content)
