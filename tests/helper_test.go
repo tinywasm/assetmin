@@ -1,4 +1,4 @@
-package assetmin
+package assetmin_test
 
 import (
 	"fmt"
@@ -30,7 +30,7 @@ func (env *TestEnvironment) TestConcurrentFileProcessing(fileExtension string, f
 	filePaths := make([]string, fileCount)
 	fileContents := make([][]byte, fileCount)
 
-	for i := range fileCount {
+	for i := 0; i < fileCount; i++ {
 		fileNames[i] = fmt.Sprintf("file%d%s", i+1, fileExtension)
 		filePaths[i] = filepath.Join(env.BaseDir, fileNames[i])
 
@@ -43,7 +43,7 @@ func (env *TestEnvironment) TestConcurrentFileProcessing(fileExtension string, f
 	}
 
 	// Write initial files
-	for i := range fileCount {
+	for i := 0; i < fileCount; i++ {
 		if err := os.WriteFile(filePaths[i], fileContents[i], 0644); err != nil {
 			env.t.Fatalf("Failed to write initial file %s: %v", filePaths[i], err)
 		}
@@ -51,12 +51,12 @@ func (env *TestEnvironment) TestConcurrentFileProcessing(fileExtension string, f
 
 	// Process files concurrently
 	var wg sync.WaitGroup
-	for i := range fileCount {
+	for i := 0; i < fileCount; i++ {
 		wg.Add(1)
-		go func(idx int) {
+		go func(i int) {
 			defer wg.Done()
-			if err := env.AssetsHandler.NewFileEvent(fileNames[idx], fileExtension, filePaths[idx], "create"); err != nil {
-				env.t.Errorf("Error processing file creation event for %s: %v", fileNames[idx], err)
+			if err := env.AssetsHandler.NewFileEvent(fileNames[i], fileExtension, filePaths[i], "create"); err != nil {
+				env.t.Errorf("Error processing file creation event for %s: %v", fileNames[i], err)
 			}
 		}(i)
 	}
@@ -76,7 +76,7 @@ func (env *TestEnvironment) TestConcurrentFileProcessing(fileExtension string, f
 
 	// Verify that the content of all files is present
 	contentStr := string(content)
-	for i := range fileCount {
+	for i := 0; i < fileCount; i++ {
 		expectedContent := fmt.Sprintf("Content from %s file %d", fileType, i+1)
 		if !strings.Contains(contentStr, expectedContent) {
 			env.t.Errorf("The content of %s file %d is not present in output", fileType, i+1)
@@ -85,7 +85,7 @@ func (env *TestEnvironment) TestConcurrentFileProcessing(fileExtension string, f
 
 	// Update all files with new content
 	updatedContents := make([][]byte, fileCount)
-	for i := range fileCount {
+	for i := 0; i < fileCount; i++ {
 		// Generate updated content based on file type
 		if fileExtension == ".js" {
 			updatedContents[i] = []byte(fmt.Sprintf("console.log('Updated content from %s file %d');", fileType, i+1))
@@ -99,12 +99,12 @@ func (env *TestEnvironment) TestConcurrentFileProcessing(fileExtension string, f
 
 	// Process the updated files concurrently
 	wg = sync.WaitGroup{}
-	for i := range fileCount {
+	for i := 0; i < fileCount; i++ {
 		wg.Add(1)
-		go func(idx int) {
+		go func(i int) {
 			defer wg.Done()
-			if err := env.AssetsHandler.NewFileEvent(fileNames[idx], fileExtension, filePaths[idx], "write"); err != nil {
-				env.t.Errorf("Error processing file write event for %s: %v", fileNames[idx], err)
+			if err := env.AssetsHandler.NewFileEvent(fileNames[i], fileExtension, filePaths[i], "write"); err != nil {
+				env.t.Errorf("Error processing file write event for %s: %v", fileNames[i], err)
 			}
 		}(i)
 	}
@@ -118,7 +118,7 @@ func (env *TestEnvironment) TestConcurrentFileProcessing(fileExtension string, f
 	updatedContentStr := string(updatedContent)
 
 	// Verify that the updated content of all files is present
-	for i := range fileCount {
+	for i := 0; i < fileCount; i++ {
 		var expectedUpdatedContent string
 		if fileExtension == ".js" {
 			expectedUpdatedContent = fmt.Sprintf("Updated content from %s file %d", fileType, i+1)
@@ -131,7 +131,7 @@ func (env *TestEnvironment) TestConcurrentFileProcessing(fileExtension string, f
 	}
 
 	// Verify that the original content is no longer present (no duplication)
-	for i := range fileCount {
+	for i := 0; i < fileCount; i++ {
 		var originalContent string
 		if fileExtension == ".js" {
 			originalContent = fmt.Sprintf("Content from %s file %d", fileType, i+1)

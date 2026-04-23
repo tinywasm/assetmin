@@ -26,7 +26,7 @@ func FileWrite(pathFile string, data bytes.Buffer) error {
 	}
 	defer dst.Close()
 
-	// Copy the uploaded contentFile to the filesystem at the specified destination
+	// Copy the uploaded ContentFile to the filesystem at the specified destination
 	_, err = io.Copy(dst, &data)
 	if err != nil {
 		return errors.New(e + "failed to write the file " + pathFile + " to the destination " + err.Error())

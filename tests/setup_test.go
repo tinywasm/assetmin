@@ -1,6 +1,7 @@
-package assetmin
+package assetmin_test
 
 import (
+	"github.com/tinywasm/assetmin"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,7 +17,7 @@ type TestEnvironment struct {
 	MainCssPath   string
 	MainSvgPath   string
 	MainHtmlPath  string
-	AssetsHandler *AssetMin
+	AssetsHandler *assetmin.AssetMin
 	t             *testing.T
 }
 
@@ -39,58 +40,50 @@ func (env *TestEnvironment) CleanDirectory() {
 
 // setupTestEnv configures a minimal environment for testing AssetMin
 // default write to disk is true, but can be set to false for testing purposes
-// objects param can contain *contentFile instances which will be written to disk
+// objects param can contain *assetmin.ContentFile instances which will be written to disk
 // before the AssetMin handler is created
 func setupTestEnv(testCase string, t *testing.T, objects ...any) *TestEnvironment {
 	// Create real directory instead of a temporary one
-	baseDir := filepath.Join(".", "test", testCase)
+	baseDir := t.TempDir()
 	themeDir := filepath.Join(baseDir, "web", "theme")
 	publicDir := filepath.Join(baseDir, "web", "public")
 	modulesDir := filepath.Join(baseDir, "modules")
 
 	// Create asset configuration with logging using t.Log
-	config := &Config{
+	ac := &assetmin.Config{
 		OutputDir: publicDir,
 		GetSSRClientInitJS: func() (string, error) {
 			return "console.log('init');", nil
 		},
 	}
 
-	// \n// WebAssembly initialization code\nconst wasmMemory = new WebAssembly.Memory({initial:10, maximum:100});\n
-
-	// Check if any of the objects is a contentFile and write it to disk
+	// Check if any of the objects is a ContentFile and write it to disk
 	// Also allow passing a func() (string, error) to override GetRuntimeInitializerJS
 	for _, obj := range objects {
-		if file, ok := obj.(*contentFile); ok {
+		if file, ok := obj.(*assetmin.ContentFile); ok {
 			if err := file.WriteToDisk(); err != nil {
-				t.Logf("Error writing contentFile to disk: %v", err)
+				t.Logf("Error writing ContentFile to disk: %v", err)
 			}
 		}
 
 		// add WebAssembly initialization code when a function is provided
 		if funcInitJs, ok := obj.(func() (string, error)); ok {
-			config.GetSSRClientInitJS = funcInitJs
+			ac.GetSSRClientInitJS = funcInitJs
 		}
 	}
 
 	// Create asset handler.
-	assetsHandler := NewAssetMin(config)
-
-	// Create only the base directory if it doesn't exist
-	err := os.MkdirAll(baseDir, 0755)
-	if err != nil {
-		t.Fatalf("Failed to create base directory: %v", err)
-	}
+	assetsHandler := assetmin.NewAssetMin(ac)
 
 	return &TestEnvironment{
 		BaseDir:       baseDir,
 		ThemeDir:      themeDir,
 		PublicDir:     publicDir,
 		ModulesDir:    modulesDir,
-		MainJsPath:    assetsHandler.mainJsHandler.outputPath,
-		MainCssPath:   assetsHandler.mainStyleCssHandler.outputPath,
-		MainSvgPath:   assetsHandler.spriteSvgHandler.outputPath,
-		MainHtmlPath:  assetsHandler.indexHtmlHandler.outputPath,
+		MainJsPath:    assetsHandler.GetMainJsPath(),
+		MainCssPath:   assetsHandler.GetMainCssPath(),
+		MainSvgPath:   assetsHandler.GetMainSvgPath(),
+		MainHtmlPath:  assetsHandler.GetMainHtmlPath(),
 		AssetsHandler: assetsHandler,
 		t:             t,
 	}
@@ -121,4 +114,54 @@ func (env *TestEnvironment) CreateModulesDir() *TestEnvironment {
 		env.t.Fatalf("Failed to create modules directory: %v", err)
 	}
 	return env
+}
+
+// withModules inyecta directorios de módulos sin ejecutar go list
+func (env *TestEnvironment) withModules(dirs ...string) *TestEnvironment {
+	env.AssetsHandler.SetListModulesFn(func(rootDir string) ([]string, error) {
+		return dirs, nil
+	})
+	return env
+}
+
+// writeModuleSSR crea moduleDir/ssr.go con RenderCSS y/o RenderJS mínimos
+func (env *TestEnvironment) writeModuleSSR(name, css, js string) string {
+	moduleDir := filepath.Join(env.BaseDir, "modules", name)
+	os.MkdirAll(moduleDir, 0755)
+
+	content := "package " + name + "\n\n"
+	if css != "" {
+		content += "func RenderCSS() string { return `" + css + "` }\n"
+	}
+	if js != "" {
+		content += "func RenderJS() string { return `" + js + "` }\n"
+	}
+
+	os.WriteFile(filepath.Join(moduleDir, "ssr.go"), []byte(content), 0644)
+	return moduleDir
+}
+
+// assertContainsCSS / assertNotContainsCSS — usan ContainsCSS() público
+func (env *TestEnvironment) AssertContainsCSS(substr string) {
+	if !env.AssetsHandler.ContainsCSS(substr) {
+		env.t.Errorf("CSS missing substring: %s", substr)
+	}
+}
+
+func (env *TestEnvironment) AssertNotContainsCSS(substr string) {
+	if env.AssetsHandler.ContainsCSS(substr) {
+		env.t.Errorf("CSS should NOT contain substring: %s", substr)
+	}
+}
+
+func (env *TestEnvironment) AssertContainsJS(substr string) {
+	if !env.AssetsHandler.ContainsJS(substr) {
+		env.t.Errorf("JS missing substring: %s", substr)
+	}
+}
+
+func (env *TestEnvironment) AssertHasIcon(id string) {
+	if !env.AssetsHandler.HasIcon(id) {
+		env.t.Errorf("Icon missing: %s", id)
+	}
 }

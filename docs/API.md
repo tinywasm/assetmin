@@ -36,27 +36,12 @@ See [`assetmin.go`](../assetmin.go#L35-L41) for the Config struct definition.
 
 ```go
 type Config struct {
-    // OutputDir is the directory where assets will be written in DiskMode
-    // Example: "web/public", "dist", "static"
-    OutputDir string
-
-    // Logger is called with messages for debugging and monitoring
-    // Example: func(msg ...any) { fmt.Println(msg...) }
-    Logger func(message ...any)
-
-    // GetRuntimeInitializerJS returns JavaScript code to initialize the application
-    // This code is prepended to the main JavaScript bundle
-    // Example: WASM initialization code, analytics setup, etc.
-    GetRuntimeInitializerJS func() (string, error)
-
-    // AppName is used in generated HTML templates
-    // Default: "MyApp"
-    AppName string
-
-    // AssetsURLPrefix is the URL prefix for serving static assets
-    // Examples: "/assets/", "/static/", "" (root)
-    // Note: index.html is always served at "/" regardless of this prefix
-    AssetsURLPrefix string
+    OutputDir          string                 // Directory for DiskMode
+    RootDir            string                 // Project root (for module discovery)
+    GetSSRClientInitJS func() (string, error) // App initialization JS
+    AppName            string                 // App name for templates
+    AssetsURLPrefix    string                 // URL prefix for assets
+    DevMode            bool                   // Disable caching in dev
 }
 ```
 
@@ -186,18 +171,44 @@ am.RegisterRoutes(mux)
 See [`assetmin.go`](../assetmin.go#L113-L131) for RefreshAsset implementation.
 
 ```go
-func (c *AssetMin) RefreshAsset(extension string)
-```
+### SSR & Module Loading
 
-Manually triggers a rebuild of an asset by extension. Useful when external content changes (e.g., WASM initialization code).
-
-**Example:**
+#### LoadSSRModules
 ```go
-// Refresh JavaScript bundle
-am.RefreshAsset(".js")
+func (c *AssetMin) LoadSSRModules() error
+```
+Discovers all Go modules in the project, scans for `ssr.go` files, and extracts assets (CSS, JS, HTML, Icons). Usually called automatically if `RootDir` is set.
 
-// Refresh CSS bundle
-am.RefreshAsset(".css")
+#### ReloadSSRModule
+```go
+func (c *AssetMin) ReloadSSRModule(moduleDir string) error
+```
+Re-extracts and updates assets for a single module directory. Used for hot reload.
+
+#### RegisterComponents
+```go
+func (c *AssetMin) RegisterComponents(providers ...any) error
+```
+Registers live component instances that implement SSR interfaces (`RenderCSS`, `RenderJS`, etc.).
+
+#### WaitForSSRLoad
+```go
+func (c *AssetMin) WaitForSSRLoad(timeout time.Duration)
+```
+Blocks until the background module loading is finished or timeout occurs.
+
+### Inspection & Testing
+
+These methods allow inspecting the state of the asset bundles, useful for debugging or automated tests.
+
+```go
+func (c *AssetMin) ContainsCSS(substr string) bool
+func (c *AssetMin) ContainsJS(substr string) bool
+func (c *AssetMin) ContainsSVG(substr string) bool
+func (c *AssetMin) ContainsHTML(substr string) bool
+func (c *AssetMin) HasIcon(id string) bool
+func (c *AssetMin) GetMinifiedJS() ([]byte, error)
+func (c *AssetMin) GetMinifiedCSS() ([]byte, error)
 ```
 
 ### Utility Methods

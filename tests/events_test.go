@@ -1,4 +1,4 @@
-package assetmin
+package assetmin_test
 
 import (
 	"os"
@@ -86,7 +86,7 @@ func TestOutputFileHandling(t *testing.T) {
 
 		// Test for case-insensitive path comparison
 		t.Run("case_insensitive_path", func(t *testing.T) {
-			// On Windows, file paths are case-insensitive, test that here
+			// On Windows, file.Paths are case-insensitive, test that here
 			lowerCasePath := filepath.ToSlash(env.MainJsPath)
 			upperCasePath := lowerCasePath
 			// Convert just the filename part to uppercase

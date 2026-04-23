@@ -1,6 +1,7 @@
-package assetmin
+package assetmin_test
 
 import (
+	"github.com/tinywasm/assetmin"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,37 +10,34 @@ import (
 type testSetup struct {
 	t         *testing.T
 	outputDir string
-	config    *Config
+	ac        *assetmin.Config
 }
 
 func newTestSetup(t *testing.T) *testSetup {
-	outputDir, err := os.MkdirTemp("", "assetmin_test_")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
+	outputDir := t.TempDir()
 
-	config := &Config{
+	ac := &assetmin.Config{
 		OutputDir: outputDir,
 		GetSSRClientInitJS: func() (string, error) {
-			return "console.log('init');", nil
+			return "", nil
 		},
 	}
 
 	return &testSetup{
 		t:         t,
 		outputDir: outputDir,
-		config:    config,
+		ac:        ac,
 	}
 }
 
 func (s *testSetup) cleanup() {
-	os.RemoveAll(s.outputDir)
+	// t.TempDir handles cleanup
 }
 
 func (s *testSetup) createTempFile(name, content string) string {
 	path := filepath.Join(s.outputDir, name)
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		s.t.Fatalf("Failed to write temp file %s: %v", path, err)
+		s.t.Fatalf("Failed to create temp file %s: %v", name, err)
 	}
 	return path
 }

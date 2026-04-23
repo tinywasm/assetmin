@@ -3,6 +3,7 @@ package assetmin
 import (
 	"encoding/xml"
 	"errors"
+	"path/filepath"
 	"strings"
 )
 
@@ -10,16 +11,16 @@ func NewSvgHandler(ac *Config, outputName string) *asset {
 	svgh := newAssetFile(outputName, "image/svg+xml", ac, nil)
 
 	// Add the open tags to contentOpen
-	svgh.contentOpen = append(svgh.contentOpen, &contentFile{
-		path: "sprite-open.svg",
-		content: []byte(`<svg class="sprite-icons" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true" focusable="false">
+	svgh.contentOpen = append(svgh.contentOpen, &ContentFile{
+		Path: "sprite-open.svg",
+		Content: []byte(`<svg class="sprite-icons" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true" focusable="false">
 		<defs>`),
 	})
 
 	// Add the closing tags to contentClose
-	svgh.contentClose = append(svgh.contentClose, &contentFile{
-		path: "sprite-close.svg",
-		content: []byte(`		</defs>
+	svgh.contentClose = append(svgh.contentClose, &ContentFile{
+		Path: "sprite-close.svg",
+		Content: []byte(`		</defs>
 	</svg>`),
 	})
 
@@ -34,10 +35,11 @@ func NewFaviconSvgHandler(ac *Config, outputName string) *asset {
 
 // addIcon adds an icon to the sprite handler with collision detection.
 // Returns an error if an icon with the same ID is already registered.
+// It assumes the caller holds c.mu.
 func (c *AssetMin) addIcon(id string, svgContent string) error {
-	// Initialize map if nil (lazy initialization)
-	if c.registeredIconIDs == nil {
-		c.registeredIconIDs = make(map[string]bool)
+	// Strip extension if present to use base name as ID
+	if filepath.Ext(id) == ".svg" {
+		id = strings.TrimSuffix(id, ".svg")
 	}
 
 	// Collision check
@@ -52,7 +54,6 @@ func (c *AssetMin) addIcon(id string, svgContent string) error {
 	viewBox := "0 0 16 16"
 
 	// Use XML decoder for robust attribute extraction
-	// This replaces the fragile regex approach
 	decoder := xml.NewDecoder(strings.NewReader(svgContent))
 	for {
 		token, err := decoder.Token()
@@ -67,19 +68,15 @@ func (c *AssetMin) addIcon(id string, svgContent string) error {
 					}
 				}
 			}
-			// We only need to check the root element
 			break
 		}
 	}
 
 	// Strip outer <svg> wrapper if present to avoid nested SVGs in symbol
-	// We already extracted the viewBox, so we only need the inner content
 	contentToWrap := svgContent
 	trimmed := strings.TrimSpace(svgContent)
 	if strings.HasPrefix(trimmed, "<svg") && strings.HasSuffix(trimmed, "</svg>") {
-		// Find the end of the opening tag
 		if endOpen := strings.Index(trimmed, ">"); endOpen != -1 {
-			// Extract content between <svg ...> and </svg>
 			contentToWrap = trimmed[endOpen+1 : len(trimmed)-6]
 		}
 	}

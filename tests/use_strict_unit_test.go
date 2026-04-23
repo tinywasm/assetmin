@@ -1,6 +1,7 @@
-package assetmin
+package assetmin_test
 
 import (
+	"github.com/tinywasm/assetmin"
 	"testing"
 )
 
@@ -54,7 +55,7 @@ func TestStripLeadingUseStrictUnit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := string(stripLeadingUseStrict([]byte(tt.input)))
+			result := string(assetmin.StripLeadingUseStrict([]byte(tt.input)))
 			if result != tt.expected {
 				t.Errorf("Input: %q, got: %q, want: %q", tt.input, result, tt.expected)
 			}

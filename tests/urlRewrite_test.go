@@ -1,6 +1,7 @@
-package assetmin
+package assetmin_test
 
 import (
+	"github.com/tinywasm/assetmin"
 	"testing"
 )
 
@@ -57,8 +58,8 @@ func TestReplaceRoot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := rewriteAssetUrls(tt.args.html, tt.args.newRoot); got != tt.want {
-				t.Errorf("\nrewriteAssetUrls():\n[%v]\nwant:\n[%v]", got, tt.want)
+			if got := assetmin.RewriteAssetUrls(tt.args.html, tt.args.newRoot); got != tt.want {
+				t.Errorf("\nassetmin.RewriteAssetUrls():\n[%v]\nwant:\n[%v]", got, tt.want)
 			}
 		})
 	}
