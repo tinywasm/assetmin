@@ -15,7 +15,7 @@ import (
 )
 
 type AssetMin struct {
-	mu sync.Mutex // Added mutex for synchronization
+	mu sync.Mutex // Mutex for synchronization
 	*Config
 	mainStyleCssHandler *asset
 	mainJsHandler       *asset
@@ -27,10 +27,13 @@ type AssetMin struct {
 	log                 func(message ...any)
 	onSSRCompile        func() error
 	registeredIconIDs   map[string]bool
+	listModulesFn       func(rootDir string) ([]string, error)
+	ssrLoading          sync.WaitGroup
 }
 
 type Config struct {
 	OutputDir          string                 // eg: web/static, web/public, web/assets
+	RootDir            string                 // Root directory of the project where go.mod exists
 	GetSSRClientInitJS func() (string, error) // javascript code to initialize the wasm or other handlers
 	AppName            string                 // Application name for templates (default: "MyApp")
 	AssetsURLPrefix    string                 // New: for HTTP routes
@@ -39,8 +42,9 @@ type Config struct {
 
 func NewAssetMin(ac *Config) *AssetMin {
 	c := &AssetMin{
-		Config: ac,
-		min:    minify.New(),
+		Config:            ac,
+		min:               minify.New(),
+		registeredIconIDs: make(map[string]bool),
 	}
 
 	if c.AppName == "" {
@@ -64,7 +68,7 @@ func NewAssetMin(ac *Config) *AssetMin {
 	c.spriteSvgHandler.urlPath = path.Join("/", ac.AssetsURLPrefix, svgMainFileName)
 	c.faviconSvgHandler.urlPath = path.Join("/", ac.AssetsURLPrefix, svgFaviconFileName)
 
-	c.indexHtmlHandler = NewHtmlHandler(ac, htmlMainFileName, c.mainStyleCssHandler.URLPath(), c.mainJsHandler.URLPath(), c.faviconSvgHandler.URLPath())
+	c.indexHtmlHandler = NewHtmlHandler(ac, htmlMainFileName, c.mainStyleCssHandler.GetURLPath(), c.mainJsHandler.GetURLPath(), c.faviconSvgHandler.GetURLPath())
 	c.indexHtmlHandler.urlPath = "/" // Index is always at root
 	c.min.Add("text/html", &html.Minifier{
 		KeepDocumentTags: true,
@@ -172,4 +176,12 @@ func (c *AssetMin) BuildOnDisk() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.buildOnDisk
+}
+
+// SetListModulesFn replaces the module discovery function.
+// Only for tests — allows injecting dummy directories without network.
+func (c *AssetMin) SetListModulesFn(fn func(rootDir string) ([]string, error)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.listModulesFn = fn
 }

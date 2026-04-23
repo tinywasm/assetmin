@@ -1,6 +1,7 @@
-package assetmin
+package assetmin_test
 
 import (
+	"github.com/tinywasm/assetmin"
 	"strings"
 	"testing"
 )
@@ -20,7 +21,7 @@ func TestParseExistingHtmlContent(t *testing.T) {
 </body>
 </html>`
 
-		open, close := parseExistingHtmlContent(html)
+		open, close := assetmin.ParseExistingHtmlContent(html)
 
 		if !strings.Contains(open, "<header>Header</header>") {
 			t.Errorf("open should contain header")
@@ -49,7 +50,7 @@ func TestParseExistingHtmlContent(t *testing.T) {
 </body>
 </html>`
 
-		open, close := parseExistingHtmlContent(html)
+		open, close := assetmin.ParseExistingHtmlContent(html)
 
 		if !strings.Contains(open, "<main>") {
 			t.Errorf("open should contain <main>")
@@ -75,7 +76,7 @@ func TestParseExistingHtmlContent(t *testing.T) {
 </body>
 </html>`
 
-		open, close := parseExistingHtmlContent(html)
+		open, close := assetmin.ParseExistingHtmlContent(html)
 
 		if !strings.Contains(open, "<div>Content</div>") {
 			t.Errorf("open should contain content div")
@@ -100,7 +101,7 @@ func TestParseExistingHtmlContent(t *testing.T) {
 </body>
 </html>`
 
-		open, close := parseExistingHtmlContent(html)
+		open, close := assetmin.ParseExistingHtmlContent(html)
 
 		if !strings.Contains(open, "<div>Content</div>") {
 			t.Errorf("open should contain content div")
@@ -144,7 +145,7 @@ func TestParseExistingHtmlContent(t *testing.T) {
 </body>
 </html>`
 
-		open, close := parseExistingHtmlContent(html)
+		open, close := assetmin.ParseExistingHtmlContent(html)
 
 		// Verificar que el contenido se dividió correctamente en el marcador {{.Modules}}
 		if !strings.Contains(open, "<div id=\"user-mobile-messages\">") {

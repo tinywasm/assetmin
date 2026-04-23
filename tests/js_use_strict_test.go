@@ -1,4 +1,4 @@
-package assetmin
+package assetmin_test
 
 import (
 	"os"

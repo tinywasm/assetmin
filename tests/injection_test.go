@@ -1,8 +1,7 @@
-package assetmin
+package assetmin_test
 
 //
 import (
-	"strings"
 	"testing"
 )
 
@@ -12,13 +11,13 @@ func TestAssetMin_AddAssets(t *testing.T) {
 
 	// Test AddCSS
 	am.InjectCSS("mockCSS", "body { color: blue; }")
-	if !containsContent(am.mainStyleCssHandler.contentMiddle, "body { color: blue; }") {
+	if !am.ContainsCSS("body { color: blue; }") {
 		t.Error("CSS content not found in mainStyleCssHandler")
 	}
 
 	// Test AddJS
 	am.InjectJS("mockJS", "console.log('hello');")
-	if !containsContent(am.mainJsHandler.contentMiddle, "console.log('hello');") {
+	if !am.ContainsJS("console.log('hello');") {
 		t.Error("JS content not found in mainJsHandler")
 	}
 
@@ -27,26 +26,16 @@ func TestAssetMin_AddAssets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddIcon failed: %v", err)
 	}
-	if !am.registeredIconIDs["test-icon"] {
+	if !am.HasIcon("test-icon") {
 		t.Error("Icon not registered in map")
 	}
-	if !containsContent(am.spriteSvgHandler.contentMiddle, "test-icon") {
+	if !am.ContainsSVG("test-icon") {
 		t.Error("Icon not found in sprite handler")
 	}
 
 	// Test InjectBodyContent
 	am.InjectHTML("<div>Injected</div>")
-	if !containsContent(am.indexHtmlHandler.contentMiddle, "<div>Injected</div>") {
+	if !am.ContainsHTML("<div>Injected</div>") {
 		t.Error("HTML content not found in indexHtmlHandler")
 	}
-}
-
-// Helper
-func containsContent(files []*contentFile, substr string) bool {
-	for _, f := range files {
-		if strings.Contains(string(f.content), substr) {
-			return true
-		}
-	}
-	return false
 }

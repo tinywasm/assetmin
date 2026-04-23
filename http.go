@@ -7,11 +7,11 @@ import (
 
 // RegisterRoutes registers the HTTP handlers for all assets.
 func (c *AssetMin) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc(c.indexHtmlHandler.URLPath(), c.serveAsset(c.indexHtmlHandler))
-	mux.HandleFunc(c.mainStyleCssHandler.URLPath(), c.serveAsset(c.mainStyleCssHandler))
-	mux.HandleFunc(c.mainJsHandler.URLPath(), c.serveAsset(c.mainJsHandler))
-	mux.HandleFunc(c.spriteSvgHandler.URLPath(), c.serveAsset(c.spriteSvgHandler))
-	mux.HandleFunc(c.faviconSvgHandler.URLPath(), c.serveAsset(c.faviconSvgHandler))
+	mux.HandleFunc(c.indexHtmlHandler.GetURLPath(), c.serveAsset(c.indexHtmlHandler))
+	mux.HandleFunc(c.mainStyleCssHandler.GetURLPath(), c.serveAsset(c.mainStyleCssHandler))
+	mux.HandleFunc(c.mainJsHandler.GetURLPath(), c.serveAsset(c.mainJsHandler))
+	mux.HandleFunc(c.spriteSvgHandler.GetURLPath(), c.serveAsset(c.spriteSvgHandler))
+	mux.HandleFunc(c.faviconSvgHandler.GetURLPath(), c.serveAsset(c.faviconSvgHandler))
 }
 
 func (c *AssetMin) serveAsset(asset *asset) http.HandlerFunc {

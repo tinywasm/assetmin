@@ -1,6 +1,7 @@
-package assetmin
+package assetmin_test
 
 import (
+	"github.com/tinywasm/assetmin"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +16,7 @@ func TestRegisterRoutes(t *testing.T) {
 		setup := newTestSetup(t)
 		defer setup.cleanup()
 
-		am := NewAssetMin(setup.config)
+		am := assetmin.NewAssetMin(setup.ac)
 		mux := http.NewServeMux()
 		am.RegisterRoutes(mux)
 		server := httptest.NewServer(mux)
@@ -37,7 +38,8 @@ func TestRegisterRoutes(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("GET /: expected status OK, got %v", resp.StatusCode)
 		}
-		if contentType := resp.Header.Get("Content-Type"); contentType != "text/html" {
+		contentType := resp.Header.Get("Content-Type")
+		if contentType != "text/html" {
 			t.Errorf("GET /: expected content-type text/html, got %v", contentType)
 		}
 
@@ -49,7 +51,8 @@ func TestRegisterRoutes(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("GET /script.js: expected status OK, got %v", resp.StatusCode)
 		}
-		if contentType := resp.Header.Get("Content-Type"); contentType != "text/javascript" {
+		contentType = resp.Header.Get("Content-Type")
+		if contentType != "text/javascript" {
 			t.Errorf("GET /script.js: expected content-type text/javascript, got %v", contentType)
 		}
 
@@ -61,7 +64,8 @@ func TestRegisterRoutes(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("GET /style.css: expected status OK, got %v", resp.StatusCode)
 		}
-		if contentType := resp.Header.Get("Content-Type"); contentType != "text/css" {
+		contentType = resp.Header.Get("Content-Type")
+		if contentType != "text/css" {
 			t.Errorf("GET /style.css: expected content-type text/css, got %v", contentType)
 		}
 	})
@@ -70,8 +74,8 @@ func TestRegisterRoutes(t *testing.T) {
 		setup := newTestSetup(t)
 		defer setup.cleanup()
 
-		setup.config.AssetsURLPrefix = "/static/"
-		am := NewAssetMin(setup.config)
+		setup.ac.AssetsURLPrefix = "/static/"
+		am := assetmin.NewAssetMin(setup.ac)
 		mux := http.NewServeMux()
 		am.RegisterRoutes(mux)
 		server := httptest.NewServer(mux)
@@ -107,7 +111,8 @@ func TestRegisterRoutes(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("GET /script.js: expected status OK, got %v", resp.StatusCode)
 		}
-		if contentType := resp.Header.Get("Content-Type"); contentType != "text/html" {
+		contentType := resp.Header.Get("Content-Type")
+		if contentType != "text/html" {
 			t.Errorf("GET /script.js: expected content-type text/html, got %v", contentType)
 		}
 	})
@@ -118,7 +123,7 @@ func TestWorks(t *testing.T) {
 		setup := newTestSetup(t)
 		defer setup.cleanup()
 
-		am := NewAssetMin(setup.config)
+		am := assetmin.NewAssetMin(setup.ac)
 		am.SetBuildOnDisk(false)
 
 		err := am.NewFileEvent("test.css", ".css", setup.createTempFile("test.css", "body{color:red}"), "create")
@@ -137,7 +142,7 @@ func TestWorks(t *testing.T) {
 		setup := newTestSetup(t)
 		defer setup.cleanup()
 
-		am := NewAssetMin(setup.config)
+		am := assetmin.NewAssetMin(setup.ac)
 		am.SetBuildOnDisk(true)
 
 		err := am.NewFileEvent("test.css", ".css", setup.createTempFile("test.css", "body{color:red}"), "create")
@@ -159,8 +164,8 @@ func TestWorks(t *testing.T) {
 		setup := newTestSetup(t)
 		defer setup.cleanup()
 
-		setup.config.AssetsURLPrefix = "/assets"
-		am := NewAssetMin(setup.config)
+		setup.ac.AssetsURLPrefix = "/assets"
+		am := assetmin.NewAssetMin(setup.ac)
 		mux := http.NewServeMux()
 		am.RegisterRoutes(mux)
 		server := httptest.NewServer(mux)
@@ -190,7 +195,7 @@ func TestWorks(t *testing.T) {
 		setup := newTestSetup(t)
 		defer setup.cleanup()
 
-		am := NewAssetMin(setup.config)
+		am := assetmin.NewAssetMin(setup.ac)
 
 		am.InjectHTML("<div id='custom'>Injected</div>")
 

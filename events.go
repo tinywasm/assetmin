@@ -10,9 +10,9 @@ import (
 )
 
 func (c *AssetMin) UpdateFileContentInMemory(filePath, extension, event string, content []byte) (*asset, error) {
-	file := &contentFile{
-		path:    filePath,
-		content: content,
+	file := &ContentFile{
+		Path:    filePath,
+		Content: content,
 	}
 
 	switch extension {
@@ -23,7 +23,7 @@ func (c *AssetMin) UpdateFileContentInMemory(filePath, extension, event string, 
 	case ".js":
 		// Remove a leading "use strict" directive from incoming files to avoid
 		// duplicating the directive which we add globally in startCodeJS.
-		file.content = stripLeadingUseStrict(file.content)
+		file.Content = stripLeadingUseStrict(file.Content)
 		err := c.mainJsHandler.UpdateContent(filePath, event, file)
 		return c.mainJsHandler, err
 
@@ -86,6 +86,9 @@ func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) err
 		}
 	}
 
+	if extension == ".svg" && filepath.Base(filePath) != c.faviconSvgHandler.fileOutputName {
+		return c.addIcon(fileName, string(content))
+	}
 	fh, err := c.UpdateFileContentInMemory(filePath, extension, event, content) // Update contentMiddle
 	if err != nil {
 		return errors.New(e + err.Error())
@@ -143,9 +146,9 @@ func (c *AssetMin) startCodeJS() (out string, err error) {
 
 // clear memory files
 func (f *asset) ClearMemoryFiles() {
-	f.contentOpen = []*contentFile{}
-	f.contentMiddle = []*contentFile{}
-	f.contentClose = []*contentFile{}
+	f.contentOpen = []*ContentFile{}
+	f.contentMiddle = []*ContentFile{}
+	f.contentClose = []*ContentFile{}
 }
 
 // ShouldCompileToWasm checks if the file triggers WASM compilation.

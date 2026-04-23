@@ -35,9 +35,9 @@ func NewHtmlHandler(ac *Config, outputName, cssURL, jsURL, faviconURL string) *a
 		faviconURL: faviconURL,
 	}
 	//  default marcador de inicio index HTML
-	af.contentOpen = append(af.contentOpen, &contentFile{
-		path: "index-open.html",
-		content: []byte(`<!doctype html>
+	af.contentOpen = append(af.contentOpen, &ContentFile{
+		Path: "index-open.html",
+		Content: []byte(`<!doctype html>
 <html>
 <head>
 	<meta charset="utf-8">
@@ -50,9 +50,9 @@ func NewHtmlHandler(ac *Config, outputName, cssURL, jsURL, faviconURL string) *a
 	})
 
 	// default marcador de cierre index HTML
-	af.contentClose = append(af.contentClose, &contentFile{
-		path: "index-close.html",
-		content: []byte(string(hh.generateJavaScriptTag()) + `
+	af.contentClose = append(af.contentClose, &ContentFile{
+		Path: "index-close.html",
+		Content: []byte(string(hh.generateJavaScriptTag()) + `
 </body>
 </html>`),
 	})

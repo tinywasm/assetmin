@@ -18,9 +18,9 @@ type asset struct {
 	mediatype      string                 // eg: "text/html", "text/css", "image/svg+xml"
 	initCode       func() (string, error) // eg js: "console.log('hello world')". eg: css: "body{color:red}" eg: html: "<html></html>". eg: svg: "<svg></svg>"
 
-	contentOpen   []*contentFile // eg: files from theme folder
-	contentMiddle []*contentFile //eg: files from modules folder
-	contentClose  []*contentFile // eg: files js from testin or end tags
+	contentOpen   []*ContentFile // eg: files from theme folder
+	contentMiddle []*ContentFile //eg: files from modules folder
+	contentClose  []*ContentFile // eg: files js from testin or end tags
 
 	dynamicContent []func() []byte // Dynamic content providers
 
@@ -29,10 +29,10 @@ type asset struct {
 	cacheValid     bool         // True if cache matches current content
 }
 
-// contentFile represents a file with its path and content
-type contentFile struct {
-	path    string // eg: modules/module1/file.js
-	content []byte /// eg: "console.log('hello world')"
+// ContentFile represents a file with its path and content
+type ContentFile struct {
+	Path    string // eg: modules/module1/file.js
+	Content []byte /// eg: "console.log('hello world')"
 }
 
 // AddDynamicContent adds a function that generates content dynamically during WriteContent
@@ -45,15 +45,15 @@ func (h *asset) AddDynamicContent(fn func() []byte) {
 
 // WriteToDisk writes the content file to disk at the specified path
 // It creates parent directories if they don't exist
-func (f *contentFile) WriteToDisk() error {
+func (f *ContentFile) WriteToDisk() error {
 	// Create parent directories if they don't exist
-	dir := filepath.Dir(f.path)
+	dir := filepath.Dir(f.Path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
 
 	// Write content to the file
-	return os.WriteFile(f.path, f.content, 0644)
+	return os.WriteFile(f.Path, f.Content, 0644)
 }
 
 // newAssetFile creates a new asset with the specified parameters
@@ -63,9 +63,9 @@ func newAssetFile(outputName, mediaType string, ac *Config, initCode func() (str
 		outputPath:     filepath.Join(ac.OutputDir, outputName),
 		mediatype:      mediaType,
 		initCode:       initCode,
-		contentOpen:    []*contentFile{},
-		contentMiddle:  []*contentFile{},
-		contentClose:   []*contentFile{},
+		contentOpen:    []*ContentFile{},
+		contentMiddle:  []*ContentFile{},
+		contentClose:   []*ContentFile{},
 	}
 
 	return handler
@@ -75,19 +75,31 @@ func newAssetFile(outputName, mediaType string, ac *Config, initCode func() (str
 func (h *asset) AddContentMiddle(path string, content []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.contentMiddle = append(h.contentMiddle, &contentFile{path: path, content: content})
+	h.contentMiddle = append(h.contentMiddle, &ContentFile{Path: path, Content: content})
 	h.cacheValid = false
 }
 
-// assetHandlerFiles ej &mainJsHandler, &mainStyleCssHandler
-func (h *asset) UpdateContent(filePath, event string, f *contentFile) (err error) {
+// UpdateContent updates the asset content in the default "middle" slot.
+func (h *asset) UpdateContent(filePath, event string, f *ContentFile) error {
+	return h.UpdateContentInSlot(filePath, event, f, "middle")
+}
+
+// UpdateContentInSlot updates the asset content in the specified slot ("open", "middle", "close").
+func (h *asset) UpdateContentInSlot(filePath, event string, f *ContentFile, slot string) (err error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	h.cacheValid = false // direct field access under lock instead of calling InvalidateCache which locks again
 
-	// por defecto los archivos de destino son contenido comun eg: modulos, archivos sueltos
-	filesToUpdate := &h.contentMiddle
+	var filesToUpdate *[]*ContentFile
+	switch slot {
+	case "open":
+		filesToUpdate = &h.contentOpen
+	case "close":
+		filesToUpdate = &h.contentClose
+	default:
+		filesToUpdate = &h.contentMiddle
+	}
 
 	switch event {
 	case "create", "write", "modify":
@@ -103,10 +115,10 @@ func (h *asset) UpdateContent(filePath, event string, f *contentFile) (err error
 			// to an existing memory entry (rename case) by comparing content.
 			replaced := false
 			for i, existing := range *filesToUpdate {
-				if bytes.Equal(existing.content, f.content) {
+				if bytes.Equal(existing.Content, f.Content) {
 					// Reuse existing entry: update its path and content
-					(*filesToUpdate)[i].path = filePath
-					(*filesToUpdate)[i].content = f.content
+					(*filesToUpdate)[i].Path = filePath
+					(*filesToUpdate)[i].Content = f.Content
 					replaced = true
 					break
 				}
@@ -126,9 +138,9 @@ func (h *asset) UpdateContent(filePath, event string, f *contentFile) (err error
 	return
 }
 
-func findFileIndex(files []*contentFile, filePath string) int {
+func findFileIndex(files []*ContentFile, filePath string) int {
 	for i, f := range files {
-		if f.path == filePath {
+		if f.Path == filePath {
 			return i
 		}
 	}
@@ -146,7 +158,7 @@ func (h *asset) WriteContent(buf *bytes.Buffer) {
 
 	// Write open content first
 	for _, f := range h.contentOpen {
-		buf.Write(f.content)
+		buf.Write(f.Content)
 		buf.WriteString("\n") // Add newline between files
 	}
 
@@ -158,13 +170,13 @@ func (h *asset) WriteContent(buf *bytes.Buffer) {
 
 	// Then write middle content files
 	for _, f := range h.contentMiddle {
-		buf.Write(f.content)
+		buf.Write(f.Content)
 		buf.WriteString("\n") // Add newline between files
 	}
 
 	// Then write close content files
 	for _, f := range h.contentClose {
-		buf.Write(f.content)
+		buf.Write(f.Content)
 		buf.WriteString("\n") // Add newline between files
 	}
 }
@@ -237,6 +249,6 @@ func (h *asset) GetMinifiedContent(minifier *minify.M) ([]byte, error) {
 }
 
 // URLPath returns the URL path for the asset.
-func (h *asset) URLPath() string {
+func (h *asset) GetURLPath() string {
 	return h.urlPath
 }

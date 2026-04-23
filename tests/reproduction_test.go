@@ -1,9 +1,9 @@
-package assetmin
+package assetmin_test
 
 import (
+	"strings"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 

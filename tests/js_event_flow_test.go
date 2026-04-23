@@ -1,4 +1,4 @@
-package assetmin
+package assetmin_test
 
 import (
 	"bytes"
@@ -169,7 +169,7 @@ WebAssembly.instantiateStreaming(fetch("main.wasm"), tinyGoRuntime.importObject)
 		t.Errorf("final main.js should contain content from web/theme/theme.js")
 	}
 	if !strings.Contains(finalStr, "New Module added") {
-		t.Errorf("final main.js should contain the newly written file content")
+		t.Errorf("final main.js should contain the newly written file.Content")
 	}
 	if !strings.Contains(finalStr, "goRuntime") {
 		t.Errorf("final main.js should still contain Go WASM runtime")
@@ -230,7 +230,7 @@ WebAssembly.instantiateStreaming(fetch("main.wasm"), tinyGoRuntime.importObject)
 		t.Errorf("main.js should NOT contain original script1 content after rename")
 	}
 	if !strings.Contains(afterRenameStr, "Module One Renamed") {
-		t.Errorf("main.js should contain renamed file content")
+		t.Errorf("main.js should contain renamed file.Content")
 	}
 	if !strings.Contains(afterRenameStr, "Module Two") {
 		t.Errorf("main.js should still contain script2 content")

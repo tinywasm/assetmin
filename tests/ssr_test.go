@@ -1,6 +1,7 @@
-package assetmin
+package assetmin_test
 
 import (
+	"github.com/tinywasm/assetmin"
 	"bytes"
 	"os"
 	"path/filepath"
@@ -25,13 +26,13 @@ func TestSSRModeDelegation(t *testing.T) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	config := &Config{
+	ac :=  &assetmin.Config{
 		OutputDir: filepath.Join(tmpDir, "dist"),
 		GetSSRClientInitJS: func() (string, error) {
 			return "init();", nil // No init code needed for this test
 		},
 	}
-	am := NewAssetMin(config)
+	am := assetmin.NewAssetMin(ac)
 
 	ssrCompileCalled := false
 
@@ -66,7 +67,7 @@ func TestSSRModeDelegation(t *testing.T) {
 			return nil
 		}, false)
 
-		if !am.isSSRMode() {
+		if !am.IsSSRMode() {
 			t.Fatal("expected SSR mode to be active after SetExternalSSRCompiler")
 		}
 
@@ -85,13 +86,13 @@ func TestSSRModeDelegation(t *testing.T) {
 	// 4. Files ARE updated on subsequent watcher events.
 	t.Run("ssr mode with buildOnDisk=true handles safe write and updates", func(t *testing.T) {
 		outputDir := filepath.Join(tmpDir, "ssr_disk_test")
-		config := &Config{
+		ac :=  &assetmin.Config{
 			OutputDir: outputDir,
 			GetSSRClientInitJS: func() (string, error) {
 				return "console.log('init');", nil
 			},
 		}
-		am := NewAssetMin(config)
+		am := assetmin.NewAssetMin(ac)
 
 		// Create a "pre-existing" file in output dir
 		err := os.MkdirAll(outputDir, 0755)

@@ -1,4 +1,4 @@
-package assetmin
+package assetmin_test
 
 import (
 	"os"
@@ -8,7 +8,7 @@ import (
 )
 
 // TestJSRenameFlow verifies that when a file is renamed:
-// 1. The original file content is removed from the output
+// 1. The original file.Content is removed from the output
 // 2. The new file (with potentially different content) is added to the output
 // This simulates the fsnotify behavior where rename generates two events:
 // - fsnotify.Rename for the original file (treated as remove)
