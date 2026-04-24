@@ -47,19 +47,37 @@ func (c *AssetMin) UpdateFileContentInMemory(filePath, extension, event string, 
 
 // event: create, remove, write, rename
 func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) error {
+	c.mu.Lock()
+
 	// In SSR mode, delegate to external server and return early
 	if c.isSSRMode() {
-		return c.onSSRCompile()
+		if extension == ".go" {
+			fn := c.onSSRCompile
+			c.mu.Unlock()
+			return fn()
+		}
+
+		// Hot-reload embedded files without rebuilding WASM
+		switch extension {
+		case ".css", ".js", ".svg", ".html":
+			dir := filepath.Dir(filePath)
+			c.mu.Unlock()
+			if err := c.ReloadSSRModule(dir); err == nil {
+				c.RefreshAsset(extension)
+				return nil
+			}
+			return nil
+		}
+		c.mu.Unlock()
+		return nil
 	}
+	defer c.mu.Unlock()
 
 	// Check if filePath matches any of our output paths to avoid infinite recursion
 	if c.isOutputPath(filePath) {
 		//c.writeMessage("Skipping output file:", filePath)
 		return nil
 	}
-
-	c.mu.Lock()         // Lock the mutex at the beginning
-	defer c.mu.Unlock() // Ensure mutex is unlocked when the function returns
 
 	var e = "NewFileEvent " + extension + " " + event
 	if filePath == "" {
@@ -102,7 +120,7 @@ func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) err
 
 func (c *AssetMin) processAsset(fh *asset) error {
 	// 1. Always regenerate cache
-	if err := fh.RegenerateCache(c.min); err != nil {
+	if err := fh.RegenerateCache(c.activeMinifier()); err != nil {
 		return err
 	}
 

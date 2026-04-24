@@ -30,6 +30,10 @@ func TestSSRLoader(t *testing.T) {
 			return []string{domModule, extModule, rootModule}, nil
 		})
 
+		// Since we now scan for imports, we need a .go file importing the external module
+		mainGo := filepath.Join(rootModule, "main.go")
+		os.WriteFile(mainGo, []byte("package main\nimport _ \"other/module\""), 0644)
+
 		if err := am.LoadSSRModules(); err != nil {
 			t.Fatalf("LoadSSRModules failed: %v", err)
 		}

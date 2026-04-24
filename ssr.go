@@ -24,8 +24,7 @@ func (c *AssetMin) SetExternalSSRCompiler(fn func() error, buildOnDisk bool) {
 }
 
 // isSSRMode returns true if the package is being used as a dependency (SSR mode).
+// It assumes the caller holds c.mu.
 func (c *AssetMin) isSSRMode() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	return c.onSSRCompile != nil
 }

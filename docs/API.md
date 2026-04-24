@@ -197,6 +197,22 @@ func (c *AssetMin) WaitForSSRLoad(timeout time.Duration)
 ```
 Blocks until the background module loading is finished or timeout occurs.
 
+### DevTUI Integration (Minification Toggle)
+
+AssetMin implements the `HandlerExecution` interface for integration with the DevTUI. This allows toggling minification at runtime.
+
+#### Label
+```go
+func (c *AssetMin) Label() string
+```
+Returns "Minify: ON" or "Minify: OFF" based on the current state.
+
+#### Execute
+```go
+func (c *AssetMin) Execute()
+```
+Toggles the minification state and regenerates all assets immediately.
+
 ### Inspection & Testing
 
 These methods allow inspecting the state of the asset bundles, useful for debugging or automated tests.
