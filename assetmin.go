@@ -164,7 +164,7 @@ func (c *AssetMin) SetBuildOnDisk(onDisk bool) {
 
 func (c *AssetMin) processAssetSafe(fh *asset) error {
 	// 1. Always regenerate cache
-	if err := fh.RegenerateCache(c.min); err != nil {
+	if err := fh.RegenerateCache(c.activeMinifier()); err != nil {
 		return err
 	}
 
