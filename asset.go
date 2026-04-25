@@ -198,6 +198,12 @@ func (h *asset) RegenerateCache(minifier *minify.M) error {
 	var buf bytes.Buffer
 	h.WriteContent(&buf)
 
+	if minifier == nil {
+		h.cachedMinified = buf.Bytes()
+		h.cacheValid = true
+		return nil
+	}
+
 	minified, err := minifier.Bytes(h.mediatype, buf.Bytes())
 	if err != nil {
 		return err
@@ -237,6 +243,12 @@ func (h *asset) GetMinifiedContent(minifier *minify.M) ([]byte, error) {
 
 	var buf bytes.Buffer
 	h.WriteContent(&buf)
+
+	if minifier == nil {
+		h.cachedMinified = buf.Bytes()
+		h.cacheValid = true
+		return h.cachedMinified, nil
+	}
 
 	minified, err := minifier.Bytes(h.mediatype, buf.Bytes())
 	if err != nil {

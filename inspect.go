@@ -73,7 +73,19 @@ func (c *AssetMin) GetCachedHTML() []byte {
 
 // IsSSRMode returns true if the package is being used as a dependency (SSR mode).
 func (c *AssetMin) IsSSRMode() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.isSSRMode()
+}
+
+// TestOnly_ScanImports is for testing the import scanner.
+func (c *AssetMin) TestOnly_ScanImports() (map[string]bool, error) {
+	return c.scanner.ScanProjectImports(c.RootDir)
+}
+
+// TestOnly_ModuleSubpackagesUsed is for testing the subpackage matcher.
+func (c *AssetMin) TestOnly_ModuleSubpackagesUsed(modulePath, moduleDir string, importedPaths map[string]bool) []string {
+	return moduleSubpackagesUsed(modulePath, moduleDir, importedPaths)
 }
 
 // ParseExistingHtmlContent is a public wrapper for tests.

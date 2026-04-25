@@ -29,6 +29,8 @@ type AssetMin struct {
 	registeredIconIDs   map[string]bool
 	listModulesFn       func(rootDir string) ([]string, error)
 	ssrLoading          sync.WaitGroup
+	scanner             *importScanner
+	minifyEnabled       bool
 }
 
 type Config struct {
@@ -45,6 +47,8 @@ func NewAssetMin(ac *Config) *AssetMin {
 		Config:            ac,
 		min:               minify.New(),
 		registeredIconIDs: make(map[string]bool),
+		scanner:           newImportScanner(),
+		minifyEnabled:     true,
 	}
 
 	if c.AppName == "" {
@@ -142,6 +146,7 @@ func (c *AssetMin) RefreshAsset(extension string) {
 	case ".html":
 		fh = c.indexHtmlHandler
 	case ".svg":
+		fh = c.spriteSvgHandler
 	}
 
 	if fh != nil {
@@ -159,7 +164,7 @@ func (c *AssetMin) SetBuildOnDisk(onDisk bool) {
 
 func (c *AssetMin) processAssetSafe(fh *asset) error {
 	// 1. Always regenerate cache
-	if err := fh.RegenerateCache(c.min); err != nil {
+	if err := fh.RegenerateCache(c.activeMinifier()); err != nil {
 		return err
 	}
 

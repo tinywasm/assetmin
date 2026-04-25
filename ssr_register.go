@@ -43,7 +43,10 @@ func (c *AssetMin) UpdateSSRModule(name string, css, js, html string, icons map[
 func (c *AssetMin) UpdateSSRModuleInSlot(name string, css, js, html string, icons map[string]string, slot string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.updateSSRModuleInSlot(name, css, js, html, icons, slot)
+}
 
+func (c *AssetMin) updateSSRModuleInSlot(name string, css, js, html string, icons map[string]string, slot string) {
 	if css != "" {
 		c.mainStyleCssHandler.UpdateContentInSlot(name, "write", &ContentFile{Path: name, Content: []byte(css)}, slot)
 	}

@@ -59,7 +59,7 @@ func TestSSRModeDelegation(t *testing.T) {
 	})
 
 	// Test case: SSR mode - manually activated via SetExternalSSRCompiler.
-	// Expected: onSSRCompile is called. No internal processing.
+	// Expected: onSSRCompile is called for .go files.
 	t.Run("ssr mode delegates to external handler", func(t *testing.T) {
 		ssrCompileCalled = false
 		am.SetExternalSSRCompiler(func() error {
@@ -71,10 +71,18 @@ func TestSSRModeDelegation(t *testing.T) {
 			t.Fatal("expected SSR mode to be active after SetExternalSSRCompiler")
 		}
 
-		am.NewFileEvent("test.js", ".js", jsPath, "write")
+		// .go file should trigger compilation
+		am.NewFileEvent("main.go", ".go", "/path/main.go", "write")
 
 		if !ssrCompileCalled {
-			t.Errorf("expected onSSRCompile to be called in SSR mode")
+			t.Errorf("expected onSSRCompile to be called in SSR mode for .go file")
+		}
+
+		// .js file should NOT trigger compilation (it's either hot-reloaded or ignored)
+		ssrCompileCalled = false
+		am.NewFileEvent("test.js", ".js", jsPath, "write")
+		if ssrCompileCalled {
+			t.Errorf("expected onSSRCompile NOT to be called for .js file in SSR mode")
 		}
 	})
 
@@ -125,19 +133,19 @@ func TestSSRModeDelegation(t *testing.T) {
 			t.Error("expected script.js to be created")
 		}
 
-		// Verify watcher update: subsequent NewFileEvent SHOULD trigger callback but NOT overwrite in SSR mode
-		newJSContent := "var updated = true;"
-		sourceJS := filepath.Join(tmpDir, "source.js")
-		os.WriteFile(sourceJS, []byte(newJSContent), 0644)
+		// Verify watcher update: subsequent NewFileEvent SHOULD trigger callback for .go files
+		newGoContent := "package main"
+		sourceGo := filepath.Join(tmpDir, "source.go")
+		os.WriteFile(sourceGo, []byte(newGoContent), 0644)
 
 		ssrCompileCalled = false
-		err = am.NewFileEvent("source.js", ".js", sourceJS, "write")
+		err = am.NewFileEvent("source.go", ".go", sourceGo, "write")
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		if !ssrCompileCalled {
-			t.Error("expected onSSRCompile to be called on watcher event")
+			t.Error("expected onSSRCompile to be called on watcher event for .go file")
 		}
 
 		// Verify script.js was NOT updated (because NewFileEvent returns early in SSR mode)
