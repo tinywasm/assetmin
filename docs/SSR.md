@@ -63,7 +63,8 @@ am.RegisterComponents(myComponent1, myComponent2)
 
 ## API Summary
 
-- `LoadSSRModules() error`: Scans all project modules for `ssr.go` and loads assets.
+- `LoadSSRModules()`: Scans all project modules for `ssr.go` and loads assets asynchronously.
+- `ScheduleSSRLoad()`: Safe entry point to start SSR loading in the background.
 - `ReloadSSRModule(dir string) error`: Reloads assets for a specific directory.
 - `WaitForSSRLoad(timeout duration)`: Blocks until the background loading is complete (primarily for tests).
 - `RegisterComponents(providers ...any)`: Registers component instances as asset providers.

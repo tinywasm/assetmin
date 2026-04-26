@@ -18,14 +18,25 @@ type Module struct {
 	Main bool
 }
 
-// LoadSSRModules descubre todos los módulos e inyecta sus assets.
-func (c *AssetMin) LoadSSRModules() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+// LoadSSRModules descubre todos los módulos e inyecta sus assets (asíncrono).
+func (c *AssetMin) LoadSSRModules() {
+	c.ScheduleSSRLoad()
+}
 
+// ScheduleSSRLoad inicia la carga de módulos SSR en segundo plano de forma segura.
+func (c *AssetMin) ScheduleSSRLoad() {
 	c.ssrLoading.Add(1)
-	defer c.ssrLoading.Done()
+	go func() {
+		defer c.ssrLoading.Done()
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		_ = c.loadSSRModulesLocked()
+	}()
+}
 
+// loadSSRModulesLocked descubre todos los módulos e inyecta sus assets.
+// Debe llamarse con el mutex c.mu bloqueado.
+func (c *AssetMin) loadSSRModulesLocked() error {
 	var modules []Module
 	var listFn = c.listModulesFn
 	if listFn == nil {

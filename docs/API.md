@@ -175,9 +175,15 @@ See [`assetmin.go`](../assetmin.go#L113-L131) for RefreshAsset implementation.
 
 #### LoadSSRModules
 ```go
-func (c *AssetMin) LoadSSRModules() error
+func (c *AssetMin) LoadSSRModules()
 ```
-Discovers all Go modules in the project, scans for `ssr.go` files, and extracts assets (CSS, JS, HTML, Icons). Usually called automatically if `RootDir` is set.
+Starts the discovery of all Go modules in the project, scans for `ssr.go` files, and extracts assets (CSS, JS, HTML, Icons) asynchronously. It is a wrapper for `ScheduleSSRLoad()`.
+
+#### ScheduleSSRLoad
+```go
+func (c *AssetMin) ScheduleSSRLoad()
+```
+Increments the SSR loading WaitGroup and starts a background goroutine to scan and load modules. This ensures that `WaitForSSRLoad` will properly block if called immediately after.
 
 #### ReloadSSRModule
 ```go
