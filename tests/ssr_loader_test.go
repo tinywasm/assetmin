@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/tinywasm/assetmin"
 )
 
 func TestSSRLoader(t *testing.T) {
@@ -34,9 +37,8 @@ func TestSSRLoader(t *testing.T) {
 		mainGo := filepath.Join(rootModule, "main.go")
 		os.WriteFile(mainGo, []byte("package main\nimport _ \"other/module\""), 0644)
 
-		if err := am.LoadSSRModules(); err != nil {
-			t.Fatalf("LoadSSRModules failed: %v", err)
-		}
+		am.LoadSSRModules()
+		am.WaitForSSRLoad(2 * time.Second)
 
 		// Verify presence
 		if !am.ContainsCSS(".dom") || !am.ContainsCSS(".ext") || !am.ContainsCSS(".root") {
@@ -88,6 +90,25 @@ func TestSSRLoader(t *testing.T) {
 		}
 		if !am.ContainsCSS(".new{}") {
 			t.Error("New CSS not found after reload")
+		}
+	})
+
+	// TestWaitForSSRLoadNoRace verifica que ScheduleSSRLoad+WaitForSSRLoad no producen
+	// data race cuando el goroutine interno aún no empezó al momento de llamar Wait.
+	t.Run("WaitForSSRLoadNoRace", func(t *testing.T) {
+		root := t.TempDir()
+		// módulo mínimo sin imports para que LoadSSRModules termine rápido
+		os.WriteFile(filepath.Join(root, "go.mod"), []byte("module testrace\ngo 1.21\n"), 0644)
+
+		ac := &assetmin.Config{
+			RootDir: root,
+		}
+		c := assetmin.NewAssetMin(ac)
+
+		// Ejecutar múltiples veces para maximizar probabilidad de race en -race
+		for i := 0; i < 20; i++ {
+			c.ScheduleSSRLoad()
+			c.WaitForSSRLoad(2 * time.Second)
 		}
 	})
 }
