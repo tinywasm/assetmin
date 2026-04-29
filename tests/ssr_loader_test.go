@@ -120,6 +120,40 @@ func IconSvg() map[string]string {
 		}
 	})
 
+	// Real-world pattern: IconSvg as a receiver method (e.g. selectsearch component).
+	// Covers the full path: extract → addIcon → sprite → HTML inline injection.
+	t.Run("LoadIconsFromReceiverMethod_InHTML", func(t *testing.T) {
+		rootModule := t.TempDir()
+
+		ssrContent := "package selectsearch\n" +
+			"func (c *SelectSearch) IconSvg() map[string]string {\n" +
+			"\treturn map[string]string{\n" +
+			"\t\t\"ss-arrow-down\": \"<path fill=\\\"currentColor\\\" d=\\\"M1.5 4.5l6.5 7 6.5-7H1.5z\\\"/>\",\n" +
+			"\t}\n" +
+			"}\n"
+		os.WriteFile(filepath.Join(rootModule, "ssr.go"), []byte(ssrContent), 0644)
+
+		am := assetmin.NewAssetMin(&assetmin.Config{RootDir: rootModule})
+		am.SetListModulesFn(func(root string) ([]string, error) {
+			return []string{rootModule}, nil
+		})
+
+		am.LoadSSRModules()
+		am.WaitForSSRLoad(2 * time.Second)
+
+		if !am.HasIcon("ss-arrow-down") {
+			t.Fatal("Icon from receiver method not registered in sprite")
+		}
+
+		if err := am.RegenerateHTMLCache(); err != nil {
+			t.Fatalf("RegenerateHTMLCache: %v", err)
+		}
+		html := string(am.GetCachedHTML())
+		if !strings.Contains(html, `id="ss-arrow-down"`) {
+			t.Errorf("HTML should contain sprite symbol inline, got:\n%s", html)
+		}
+	})
+
 	// TestWaitForSSRLoadNoRace verifica que ScheduleSSRLoad+WaitForSSRLoad no producen
 	// data race cuando el goroutine interno aún no empezó al momento de llamar Wait.
 	t.Run("WaitForSSRLoadNoRace", func(t *testing.T) {

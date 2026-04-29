@@ -13,7 +13,7 @@ func NewSvgHandler(ac *Config, outputName string) *asset {
 	// Add the open tags to contentOpen
 	svgh.contentOpen = append(svgh.contentOpen, &ContentFile{
 		Path: "sprite-open.svg",
-		Content: []byte(`<svg class="sprite-icons" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true" focusable="false">
+		Content: []byte(`<svg class="sprite-icons" xmlns="http://www.w3.org/2000/svg" style="display:none" role="img" aria-hidden="true" focusable="false">
 		<defs>`),
 	})
 

@@ -52,7 +52,8 @@ func NewHtmlHandler(ac *Config, outputName, cssURL, jsURL, faviconURL string) *a
 	// default marcador de cierre index HTML
 	af.contentClose = append(af.contentClose, &ContentFile{
 		Path: "index-close.html",
-		Content: []byte(string(hh.generateJavaScriptTag()) + `
+		Content: []byte(`<div id="app"></div>
+` + string(hh.generateJavaScriptTag()) + `
 </body>
 </html>`),
 	})

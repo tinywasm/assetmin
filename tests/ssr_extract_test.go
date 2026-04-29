@@ -81,4 +81,41 @@ func IconSvg() map[string]string {
 			t.Errorf("Expected user icon, got %q", assets.Icons["user"])
 		}
 	})
+
+	// Receiver methods are the real-world pattern (e.g. func (c *SelectSearch) IconSvg()).
+	// AST extraction must handle them identically to standalone functions.
+	t.Run("ExtractIconSvg_ReceiverMethod", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		content := "package selectsearch\n" +
+			"func (c *SelectSearch) IconSvg() map[string]string {\n" +
+			"\treturn map[string]string{\n" +
+			"\t\t\"ss-arrow-down\": \"<path fill=\\\"currentColor\\\" d=\\\"M1.5 4.5l6.5 7 6.5-7H1.5z\\\"/>\",\n" +
+			"\t}\n" +
+			"}\n"
+		os.WriteFile(filepath.Join(tmpDir, "ssr.go"), []byte(content), 0644)
+
+		assets, err := assetmin.ExtractSSRAssets(tmpDir)
+		if err != nil {
+			t.Fatalf("Error: %v", err)
+		}
+		if assets.Icons["ss-arrow-down"] == "" {
+			t.Errorf("Expected ss-arrow-down icon from receiver method, got empty")
+		}
+	})
+
+	t.Run("ExtractCSS_ReceiverMethod", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		content := `package selectsearch
+func (c *SelectSearch) RenderCSS() string { return ".ss{color:red;}" }
+`
+		os.WriteFile(filepath.Join(tmpDir, "ssr.go"), []byte(content), 0644)
+
+		assets, err := assetmin.ExtractSSRAssets(tmpDir)
+		if err != nil {
+			t.Fatalf("Error: %v", err)
+		}
+		if assets.CSS != ".ss{color:red;}" {
+			t.Errorf("Expected CSS from receiver method, got %q", assets.CSS)
+		}
+	})
 }

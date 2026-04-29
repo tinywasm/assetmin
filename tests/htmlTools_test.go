@@ -172,3 +172,30 @@ func TestParseExistingHtmlContent(t *testing.T) {
 		}
 	})
 }
+
+// TestDefaultHTMLContainsAppDiv verifies that the default HTML template injected by
+// NewHtmlHandler includes <div id="app"> as the WASM mount point.
+// This ensures the SVG sprite (injected inline before the div) survives when
+// the WASM client calls Render("app", ...) instead of Render("body", ...).
+func TestDefaultHTMLContainsAppDiv(t *testing.T) {
+	env := setupTestEnv("html_app_div", t)
+	am := env.AssetsHandler
+
+	if err := am.RegenerateHTMLCache(); err != nil {
+		t.Fatalf("RegenerateHTMLCache: %v", err)
+	}
+
+	html := string(am.GetCachedHTML())
+
+	if !strings.Contains(html, `<div id="app">`) && !strings.Contains(html, `<div id="app"/>`) {
+		t.Errorf("HTML template must contain <div id=\"app\"> as WASM mount point.\nGot:\n%s", html)
+	}
+
+	// The sprite must come before the app div so it is not replaced by Render("app", ...)
+	spriteIdx := strings.Index(html, `class="sprite-icons"`)
+	appIdx := strings.Index(html, `id="app"`)
+
+	if spriteIdx != -1 && appIdx != -1 && spriteIdx > appIdx {
+		t.Errorf("SVG sprite must appear before <div id=\"app\"> in the HTML")
+	}
+}
