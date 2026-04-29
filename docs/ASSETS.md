@@ -12,10 +12,11 @@
 - **Source**: `.js` files in modules or registered components.
 - **Processing**: Minified using `tdewolff/minify/js`. Supports "use strict" removal and runtime wrapper injection.
 
-## SVG Sprites (`icons.svg`)
+## SVG Sprites (Inline)
 - **Handler**: `spriteSvgHandler`
 - **Source**: Individual `.svg` icons.
 - **Processing**: Wrapped in `<symbol>` tags and combined into a single sprite sheet.
+- **Delivery**: Injected directly into the `<body>` of the main HTML file.
 
 ## HTML (`index.html`)
 - **Handler**: `indexHtmlHandler`

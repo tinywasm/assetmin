@@ -93,6 +93,33 @@ func TestSSRLoader(t *testing.T) {
 		}
 	})
 
+	t.Run("LoadIconsFromLocalRoot", func(t *testing.T) {
+		env := setupTestEnv("local_icons", t)
+		am := env.AssetsHandler
+
+		rootModule := env.BaseDir
+		os.WriteFile(filepath.Join(rootModule, "ssr.go"), []byte(`
+package root
+func IconSvg() map[string]string {
+    return map[string]string{
+        "local-icon": "<path d='M0 0l1 1'/>",
+    }
+}
+`), 0644)
+
+		am.RootDir = rootModule
+		am.SetListModulesFn(func(root string) ([]string, error) {
+			return []string{rootModule}, nil
+		})
+
+		am.LoadSSRModules()
+		am.WaitForSSRLoad(2 * time.Second)
+
+		if !am.HasIcon("local-icon") {
+			t.Error("Icon from local root ssr.go not loaded")
+		}
+	})
+
 	// TestWaitForSSRLoadNoRace verifica que ScheduleSSRLoad+WaitForSSRLoad no producen
 	// data race cuando el goroutine interno aún no empezó al momento de llamar Wait.
 	t.Run("WaitForSSRLoadNoRace", func(t *testing.T) {
