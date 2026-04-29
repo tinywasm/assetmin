@@ -162,7 +162,6 @@ am.RegisterRoutes(mux)
 // GET /              -> index.html
 // GET /assets/style.css   -> style.css (if AssetsURLPrefix="/assets/")
 // GET /assets/script.js   -> script.js
-// GET /assets/icons.svg  -> icons.svg
 // GET /assets/favicon.svg -> favicon.svg
 ```
 
@@ -269,12 +268,13 @@ func (c *AssetMin) EnsureOutputDirectoryExists()
 ### SVG Assets
 
 #### Sprite SVG
-- **Output**: `icons.svg`
+- **Output**: *Inline only* (injected into `index.html`)
 - **Purpose**: Icon sprite sheet
 - **Features**:
   - Multiple SVG files combined into single sprite
   - Each icon accessible via `<use>` element
   - Automatic ID management
+  - Injected directly into the `<body>` of the HTML to avoid extra HTTP requests
 
 #### Favicon SVG
 - **Output**: `favicon.svg`
@@ -320,7 +320,6 @@ Asset URLs are determined by the `AssetsURLPrefix` configuration:
 | index.html | `/` | `/` |
 | style.css | `/style.css` | `/assets/style.css` |
 | script.js | `/script.js` | `/assets/script.js` |
-| icons.svg | `/icons.svg` | `/assets/icons.svg` |
 | favicon.svg | `/favicon.svg` | `/assets/favicon.svg` |
 
 **Note**: `index.html` is always served at the root path `/`.

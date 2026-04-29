@@ -116,6 +116,76 @@ func TestRegisterRoutes(t *testing.T) {
 			t.Errorf("GET /script.js: expected content-type text/html, got %v", contentType)
 		}
 	})
+
+	t.Run("sprite is NOT exposed as route", func(t *testing.T) {
+		setup := newTestSetup(t)
+		defer setup.cleanup()
+
+		am := assetmin.NewAssetMin(setup.ac)
+		mux := http.NewServeMux()
+		am.RegisterRoutes(mux)
+		server := httptest.NewServer(mux)
+		defer server.Close()
+
+		// Requesting icons.svg should return 404 or fall back to "/" (index.html)
+		resp, err := http.Get(server.URL + "/icons.svg")
+		if err != nil {
+			t.Fatalf("HTTP GET /icons.svg failed: %v", err)
+		}
+
+		// Since "/" is registered as a catch-all in http.ServeMux (if we are not careful)
+		// Or if assetmin registers "/" as indexHtmlHandler.
+		// In http.go: mux.HandleFunc(c.indexHtmlHandler.GetURLPath(), c.serveAsset(c.indexHtmlHandler))
+		// and c.indexHtmlHandler.urlPath = "/"
+		// So http.ServeMux will treat "/" as a prefix if it's not a more specific match.
+		// Thus /icons.svg will return index.html.
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected status OK (fallback to index), got %v", resp.StatusCode)
+		}
+
+		contentType := resp.Header.Get("Content-Type")
+		if contentType != "text/html" {
+			t.Errorf("expected content-type text/html (index fallback), got %v", contentType)
+		}
+	})
+}
+
+func TestSpriteInjectedInHTML(t *testing.T) {
+	setup := newTestSetup(t)
+	defer setup.cleanup()
+
+	am := assetmin.NewAssetMin(setup.ac)
+
+	// Inject an icon
+	err := am.InjectSpriteIcon("test-icon", "<path d='M0 0h1'/>")
+	if err != nil {
+		t.Fatalf("InjectSpriteIcon failed: %v", err)
+	}
+
+	mux := http.NewServeMux()
+	am.RegisterRoutes(mux)
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/")
+	if err != nil {
+		t.Fatalf("HTTP GET / failed: %v", err)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("Failed to read response body: %v", err)
+	}
+	resp.Body.Close()
+
+	htmlContent := string(body)
+	if !strings.Contains(htmlContent, "test-icon") {
+		t.Error("index.html should contain injected icon ID")
+	}
+	if !strings.Contains(htmlContent, "<svg") {
+		t.Error("index.html should contain <svg> tag for sprite")
+	}
 }
 
 func TestWorks(t *testing.T) {
