@@ -62,10 +62,8 @@ func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) err
 		case ".css", ".js", ".svg", ".html":
 			dir := filepath.Dir(filePath)
 			c.mu.Unlock()
-			if err := c.ReloadSSRModule(dir); err == nil {
-				c.RefreshAsset(extension)
-				return nil
-			}
+			time.Sleep(20 * time.Millisecond) // Timing guard for OS file operations
+			_ = c.ReloadSSRModule(dir)        // Encapsulates refresh internally
 			return nil
 		}
 		c.mu.Unlock()

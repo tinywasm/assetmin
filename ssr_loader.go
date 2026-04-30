@@ -173,10 +173,10 @@ func isRootDir(dir, rootDir string) bool {
 // ReloadSSRModule re-extrae e inyecta los assets de un único módulo por su directorio.
 func (c *AssetMin) ReloadSSRModule(moduleDir string) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	assets, err := ExtractSSRAssets(moduleDir)
 	if err != nil {
+		c.mu.Unlock()
 		return err
 	}
 
@@ -188,6 +188,22 @@ func (c *AssetMin) ReloadSSRModule(moduleDir string) error {
 	}
 
 	c.updateSSRModuleInSlot(assets.ModuleName, assets.CSS, assets.JS, assets.HTML, assets.Icons, slot)
+	c.mu.Unlock()
+
+	// Refresh assets only if they were actually changed/extracted
+	if assets.CSS != "" {
+		c.refreshAsset(".css")
+	}
+	if assets.JS != "" {
+		c.refreshAsset(".js")
+	}
+	if assets.HTML != "" {
+		c.refreshAsset(".html")
+	}
+	if len(assets.Icons) > 0 {
+		c.refreshAsset(".svg")
+	}
+
 	return nil
 }
 

@@ -132,7 +132,7 @@ func (c *AssetMin) EnsureOutputDirectoryExists() {
 	}
 }
 
-func (c *AssetMin) RefreshAsset(extension string) {
+func (c *AssetMin) refreshAsset(extension string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -153,6 +153,13 @@ func (c *AssetMin) RefreshAsset(extension string) {
 			c.writeMessage("Error refreshing asset "+extension, err)
 		}
 	}
+}
+
+// RefreshWasmAssets triggers a refresh of JS and HTML assets.
+// Call this when the WASM binary changes to ensure they are up to date.
+func (c *AssetMin) RefreshWasmAssets() {
+	c.refreshAsset(".js")
+	c.refreshAsset(".html")
 }
 
 // SetBuildOnDisk sets the work mode for AssetMin.
