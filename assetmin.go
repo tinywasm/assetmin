@@ -155,11 +155,10 @@ func (c *AssetMin) refreshAsset(extension string) {
 	}
 }
 
-// RefreshWasmAssets triggers a refresh of JS and HTML assets.
+// RefreshJSAssets triggers a refresh of JS assets.
 // Call this when the WASM binary changes to ensure they are up to date.
-func (c *AssetMin) RefreshWasmAssets() {
+func (c *AssetMin) RefreshJSAssets() {
 	c.refreshAsset(".js")
-	c.refreshAsset(".html")
 }
 
 // SetBuildOnDisk sets the work mode for AssetMin.

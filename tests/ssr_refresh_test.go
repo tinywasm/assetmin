@@ -98,8 +98,8 @@ func TestRefreshWasmAssets_RefreshesJSAndHTMLOnly(t *testing.T) {
 	// Initial check: GetInitCodeJS might call mockInit
 	initCode1, _ := am.GetInitCodeJS()
 
-	// RefreshWasmAssets() should refresh .js and .html, triggering another call to mockInit
-	am.RefreshWasmAssets()
+	// RefreshJSAssets() should refresh .js and .html, triggering another call to mockInit
+	am.RefreshJSAssets()
 
 	// Verify regeneration
 	initCode2, _ := am.GetInitCodeJS()
