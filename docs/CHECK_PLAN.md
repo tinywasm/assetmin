@@ -28,10 +28,10 @@ internamente para cada tipo que realmente cambió.
 | Caller actual | Después |
 |---|---|
 | `app/section-build.go:208-210` (tras `ReloadSSRModule`) | eliminado — `ReloadSSRModule` encapsula el refresh |
-| `app/section-build.go:243-244` (`OnWasmExecChange`) | usa nuevo método `RefreshWasmAssets()` |
+| `app/section-build.go:243-244` (`OnWasmExecChange`) | usa nuevo método `RefreshJSAssets()` |
 | `assetmin/events.go:66` | eliminado — `ReloadSSRModule` encapsula el refresh |
 
-### Nuevo método público: `RefreshWasmAssets()`
+### Nuevo método público: `RefreshJSAssets()`
 Cuando el binario WASM cambia (compilación Go estándar ↔ TinyGo), solo JS y HTML
 dependen de él. CSS no cambia. Este método encapsula ese conocimiento dentro de
 assetmin sin exponer extensiones al caller.
@@ -85,7 +85,7 @@ func (c *AssetMin) ReloadSSRModule(moduleDir string) error {
 
 ### `assetmin.go`
 - Renombrar `RefreshAsset` → `refreshAsset` (privada)
-- Añadir `RefreshWasmAssets()` público que llama `refreshAsset` para `.js` y `.html`
+- Añadir `RefreshJSAssets()` público que llama `refreshAsset` para `.js` y `.html`
 
 ### `ssr_loader.go` — `ReloadSSRModule`
 - Eliminar `defer c.mu.Unlock()`; unlock manual antes de los refreshes
@@ -126,7 +126,7 @@ el `defer` causaría deadlock silencioso en producción. El race detector lo atr
 
 ### Nuevo — `TestRefreshWasmAssets_RefreshesJSAndHTMLOnly`
 Registra CSS, JS y HTML iniciales. Modifica el contenido JS dinámico. Llama
-`RefreshWasmAssets()`. Verifica que JS y HTML se actualizaron, CSS no cambió.
+`RefreshJSAssets()`. Verifica que JS y HTML se actualizaron, CSS no cambió.
 **Por qué:** es API pública nueva. Un error de implementación (añadir `.css` o
 omitir `.html`) rompería silenciosamente el hot-reload del binario WASM.
 
@@ -134,7 +134,7 @@ omitir `.html`) rompería silenciosamente el hot-reload del binario WASM.
 
 | File | Change |
 |------|--------|
-| `assetmin.go` | `RefreshAsset` → `refreshAsset` privada; añadir `RefreshWasmAssets()` |
+| `assetmin.go` | `RefreshAsset` → `refreshAsset` privada; añadir `RefreshJSAssets()` |
 | `ssr_loader.go` | Unlock manual + `refreshAsset` por asset cambiado |
 | `events.go` | Eliminar `refreshAsset` explícita; añadir `time.Sleep(20ms)` |
 | `tests/css_ssr_hotreload_test.go` | 3 tests nuevos + test existente que falla |

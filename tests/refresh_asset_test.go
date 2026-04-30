@@ -29,7 +29,7 @@ func TestRefreshAsset(t *testing.T) {
 
 	// 2. Change mode and refresh
 	currentMode = "tinygo"
-	am.RefreshAsset(".js")
+	am.RefreshJSAssets()
 
 	// Verify update
 	initCode, _ = am.GetInitCodeJS()
@@ -56,7 +56,7 @@ func TestRefreshAssetMultipleFiles(t *testing.T) {
 	}
 
 	currentMode = "enhanced"
-	am.RefreshAsset(".js")
+	am.RefreshJSAssets()
 
 	initCode, _ = am.GetInitCodeJS()
 	if !strings.Contains(initCode, "enhancedInit") {
