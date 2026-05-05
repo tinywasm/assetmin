@@ -1,70 +1,131 @@
 # SSR Module Asset Extraction & Loading
 
-`assetmin` supports automatic discovery and extraction of assets declared in `ssr.go` files (with build tag `!wasm`) from Go modules. This allows modules to ship their own CSS, JS, HTML, and SVG icons that are automatically bundled into the application.
+`assetmin` automatically discovers Go modules in the project tree, parses each `ssr.go` file (build tag `!wasm`) via AST, and routes the extracted assets — CSS, JS, HTML, SVG icons — into the rendered `<head>`. Modules ship their own assets without ever importing `assetmin`; the contract is purely the function names exposed by `ssr.go`.
 
 ## Asset Declaration (Contract)
 
-Modules can expose their assets by including an `ssr.go` file in their root directory:
+A module exposes its assets by adding an `ssr.go` file in its package root:
 
 ```go
 //go:build !wasm
 
 package mypkg
 
-// CSS - string literal or via //go:embed
-func RenderCSS() string { return `.my-class { color: red; }` }
+import _ "embed"
 
-// JS - string literal or via //go:embed
-func RenderJS() string { return `console.log("hello from module")` }
+//go:embed theme.css
+var rootCSS string
 
-// SVG icons - map literal inline
-func IconSvg() map[string]string {
-    return map[string]string{"icon-id": `<svg>...</svg>`}
-}
+// Default `:root { … }` theme tokens. Routed to the `open` slot
+// (rendered first in <head>). At most one module wins this slot —
+// see "Single-override rule" below.
+func RootCSS() string { return rootCSS }
 
-// HTML SSR - string literal
+// Component-level CSS. Routed to the `middle` slot for dependencies
+// or to the `close` slot when this is the root project.
+func RenderCSS() string { return `.my-widget { … }` }
+
+// Component-level JS. Same slot routing as RenderCSS.
+func RenderJS() string { return `console.log("ready")` }
+
+// HTML fragment for SSR.
 func RenderHTML() string { return `<div class="my-widget"></div>` }
+
+// SVG icons collected into the global sprite sheet.
+func IconSvg() map[string]string {
+    return map[string]string{"icon-id": `<svg>…</svg>`}
+}
 ```
 
-### Supported Extraction Patterns
-The AST extractor supports:
-- **String literals** and **Raw strings**.
-- **String concatenation** (simple `+` operations).
-- **Embedded files** via `//go:embed` (the extractor reads the referenced file).
+### Function-to-slot map
 
-## Automatic Discovery
+| Function | `SSRAssets` field | Destination slot | Notes |
+|---|---|---|---|
+| `RootCSS()` | `RootCSS` | `open` | Single-override (see below) |
+| `RenderCSS()` | `CSS` | `middle` (deps) / `close` (root project) | |
+| `RenderJS()` | `JS` | same as `RenderCSS` | |
+| `RenderHTML()` | `HTML` | same as `RenderCSS` | Only if publicly readable |
+| `IconSvg()` | `Icons` | sprite registry (no slot) | Keys are icon IDs |
 
-When `Config.RootDir` is set to the project root (where `go.mod` exists), `assetmin` can automatically discover all modules used by the project using `go list -m -json all`.
+### Supported extraction patterns
 
-### Loading Process
-1. **Initial Load**: `NewAssetMin` triggers `LoadSSRModules()` in a background goroutine.
-2. **Module Order**:
-   - `tinywasm/dom`: Injected into the `open` slot (theme variables, always first).
-   - External Modules: Injected into the `middle` slot (alphabetical order).
-   - Root Project: Injected into the `close` slot (can override everything).
+Each function must return a value the AST walker can evaluate statically:
 
-## Hot Reload
+- **String literal** — `return ":root{--x:1;}"`
+- **`//go:embed` var** — `return rootCSS` where `rootCSS` is tagged
+- **String concatenation** — `return ":root{" + "}"`
 
-For local modules (via `replace` in `go.mod`), `assetmin` supports hot reloading of `ssr.go` changes.
+Function calls (`return compute()`) and any other dynamic expression evaluate to the empty string. If you need runtime computation, register an instance via [`RegisterComponents`](COMPONENT_REGISTRATION.md) instead.
 
-When `ssr.go` is modified, the orchestrator (e.g., `tinywasm/app`) calls:
+## Single-override rule for `RootCSS()`
+
+`:root { … }` is a global namespace. To prevent silent theme corruption from transitive dependencies, only one `RootCSS()` reaches the bundle:
+
+1. If the **root project** declares `RootCSS()` → it wins.
+2. Otherwise, if **`tinywasm/dom`** declares `RootCSS()` → it wins (the default fallback theme).
+3. If a **third-party module** (neither root nor dom) declares `RootCSS()` → ignored, with a warning logged via `Config.Logger`.
+
+The fallback module path is the unexported constant `domModulePath = "tinywasm/dom"` in `ssr_loader.go`. This is the only place where `assetmin` references `dom` by name.
+
+`RenderCSS()`, `RenderJS()`, `RenderHTML()`, and `IconSvg()` from third-party modules are NOT subject to single-override — they accumulate normally in the `middle` slot.
+
+## Slot ordering in `<head>`
+
+```
+<head>
+  …
+  [open]    — RootCSS() winner (root project or tinywasm/dom)
+  [middle]  — RenderCSS() / RenderJS() from imported dependencies
+  [close]   — RenderCSS() / RenderJS() from the root project
+  …
+</head>
+```
+
+CSS cascade order: dependencies cannot override the root project; the root project cannot override `:root` if it didn't declare its own `RootCSS()` (it already won the `open` slot if it did).
+
+## Automatic discovery
+
+When `Config.RootDir` points at the project root (where `go.mod` lives), `assetmin` runs `go list -m -json all` to enumerate every module the project transitively imports, then parses each candidate `ssr.go`.
+
+```go
+am := assetmin.NewAssetMin(&assetmin.Config{
+    RootDir: ".",
+    // …
+})
+am.LoadSSRModules() // async; returns immediately
+am.WaitForSSRLoad(2 * time.Second) // optional; mostly for tests
+```
+
+`LoadSSRModules()` is non-blocking; it dispatches a goroutine. `ScheduleSSRLoad()` is the lower-level entry point if you want to call it from a custom lifecycle.
+
+## Hot reload
+
+For local modules (e.g., via `replace` in `go.mod`), the orchestrator (`tinywasm/app`) calls:
+
 ```go
 am.ReloadSSRModule(moduleDir)
 ```
-This re-extracts the assets and replaces them in the in-memory bundle without duplication.
 
-## Manual Registration
+The loader re-extracts the assets, re-evaluates the `RootCSS()` single-override (so an app that just gained or lost its own `RootCSS()` flips back and forth between its theme and dom's), and replaces in-memory bundle entries without duplication.
 
-If you have live instances of components that implement the SSR interfaces, you can register them manually:
+## Manual registration
+
+If you have live struct instances implementing the SSR interfaces, register them directly:
 
 ```go
 am.RegisterComponents(myComponent1, myComponent2)
 ```
 
-## API Summary
+Components implementing `RootCSS() string` route to the `open` slot under the same single-override rule (runtime registration is treated as coming from the app). See [Component Registration](COMPONENT_REGISTRATION.md) for the full interface list.
 
-- `LoadSSRModules()`: Scans all project modules for `ssr.go` and loads assets asynchronously.
-- `ScheduleSSRLoad()`: Safe entry point to start SSR loading in the background.
-- `ReloadSSRModule(dir string) error`: Reloads assets for a specific directory.
-- `WaitForSSRLoad(timeout duration)`: Blocks until the background loading is complete (primarily for tests).
-- `RegisterComponents(providers ...any)`: Registers component instances as asset providers.
+## API summary
+
+| Method | Purpose |
+|---|---|
+| `LoadSSRModules()` | Scan all modules and load assets asynchronously |
+| `ScheduleSSRLoad()` | Lower-level async dispatch |
+| `ReloadSSRModule(dir string) error` | Re-extract one module (for hot reload) |
+| `WaitForSSRLoad(timeout)` | Block until loading finishes (test helper) |
+| `RegisterComponents(providers ...any)` | Register live struct instances as asset providers |
+| `UpdateSSRModule(name, css, js, html, icons)` | Manually inject content into the `middle` slot |
+| `UpdateSSRModuleInSlot(name, css, js, html, icons, slot)` | Manually inject into a specific slot (`open`/`middle`/`close`) |

@@ -194,7 +194,7 @@ Re-extracts and updates assets for a single module directory. Used for hot reloa
 ```go
 func (c *AssetMin) RegisterComponents(providers ...any) error
 ```
-Registers live component instances that implement SSR interfaces (`RenderCSS`, `RenderJS`, etc.).
+Registers live component instances that implement SSR interfaces (`RootCSS`, `RenderCSS`, `RenderJS`, `RenderHTML`, `IconSvg`). See [Component Registration](COMPONENT_REGISTRATION.md) for the full interface list and slot routing.
 
 #### WaitForSSRLoad
 ```go
