@@ -31,6 +31,13 @@ type AssetMin struct {
 	ssrLoading          sync.WaitGroup
 	scanner             *importScanner
 	minifyEnabled       bool
+	fromRoot            *rootCandidate
+	fromDom             *rootCandidate
+}
+
+type rootCandidate struct {
+	name string
+	css  string
 }
 
 type Config struct {

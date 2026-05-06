@@ -13,6 +13,7 @@ import (
 
 type SSRAssets struct {
 	ModuleName string
+	RootCSS    string
 	CSS        string
 	JS         string
 	HTML       string
@@ -49,6 +50,8 @@ func ExtractSSRAssets(moduleDir string) (*SSRAssets, error) {
 		}
 
 		switch fn.Name.Name {
+		case "RootCSS":
+			assets.RootCSS = extractReturnString(fn, embeds, moduleDir)
 		case "RenderCSS":
 			assets.CSS = extractReturnString(fn, embeds, moduleDir)
 		case "RenderJS":

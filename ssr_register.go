@@ -2,6 +2,7 @@ package assetmin
 
 import "fmt"
 
+type rootCssProvider interface{ RootCSS() string }
 type cssProvider interface{ RenderCSS() string }
 type jsProvider interface{ RenderJS() string }
 type htmlProvider interface{ RenderHTML() string }
@@ -12,6 +13,13 @@ func (c *AssetMin) RegisterComponents(providers ...any) error {
 	for _, p := range providers {
 		var css, js, html string
 		var icons map[string]string
+
+		if rp, ok := p.(rootCssProvider); ok {
+			rootCSS := rp.RootCSS()
+			if rootCSS != "" {
+				c.UpdateSSRModuleInSlot(fmt.Sprintf("%T", p), rootCSS, "", "", nil, "open")
+			}
+		}
 
 		if cp, ok := p.(cssProvider); ok {
 			css = cp.RenderCSS()
