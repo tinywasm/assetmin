@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+// domModulePath is the module path that provides the default `:root` theme
+// when the root project does not declare its own RootCSS().
+const domModulePath = "tinywasm/dom"
+
 // Module representa la salida de `go list -m -json all`
 type Module struct {
 	Path string
@@ -114,21 +118,13 @@ func (c *AssetMin) loadSSRModulesLocked() error {
 		}
 
 		// Always load exceptions
-		alwaysLoad := false
-		if strings.Contains(m.Path, "tinywasm/dom") || isRootDir(m.Dir, c.RootDir) {
-			alwaysLoad = true
-		}
+		isDom := strings.Contains(m.Path, domModulePath)
+		isRoot := isRootDir(m.Dir, c.RootDir)
+		alwaysLoad := isDom || isRoot
 
 		if alwaysLoad {
-			assets, err := ExtractSSRAssets(m.Dir)
-			if err == nil {
-				slot := "middle"
-				if strings.Contains(m.Path, "tinywasm/dom") {
-					slot = "open"
-				} else if isRootDir(m.Dir, c.RootDir) {
-					slot = "close"
-				}
-				c.updateSSRModuleInSlot(assets.ModuleName, assets.CSS, assets.JS, assets.HTML, assets.Icons, slot)
+			if assets, err := ExtractSSRAssets(m.Dir); err == nil {
+				c.routeAssets(assets, isRoot, isDom)
 			}
 			// Even if root/dom has no ssr.go, we continue to check subpackages if any
 		}
@@ -143,22 +139,64 @@ func (c *AssetMin) loadSSRModulesLocked() error {
 			}
 
 			subDir := filepath.Join(m.Dir, sub)
-			assets, err := ExtractSSRAssets(subDir)
-			if err != nil {
-				continue
+			if assets, err := ExtractSSRAssets(subDir); err == nil {
+				subIsDom := strings.Contains(subDir, domModulePath)
+				subIsRoot := isRootDir(subDir, c.RootDir)
+				c.routeAssets(assets, subIsRoot, subIsDom)
 			}
-
-			slot := "middle"
-			if strings.Contains(subDir, "tinywasm/dom") {
-				slot = "open"
-			} else if isRootDir(subDir, c.RootDir) {
-				slot = "close"
-			}
-			c.updateSSRModuleInSlot(assets.ModuleName, assets.CSS, assets.JS, assets.HTML, assets.Icons, slot)
 		}
 	}
 
+	c.resolveAndApplyRootCSS()
+
 	return nil
+}
+
+func (c *AssetMin) routeAssets(a *SSRAssets, isRoot, isDom bool) {
+	if isRoot {
+		c.fromRoot = nil
+	} else if isDom {
+		c.fromDom = nil
+	}
+
+	if a.RootCSS != "" {
+		switch {
+		case isRoot:
+			c.fromRoot = &rootCandidate{name: a.ModuleName, css: a.RootCSS}
+		case isDom:
+			c.fromDom = &rootCandidate{name: a.ModuleName, css: a.RootCSS}
+		default:
+			c.Logger("warning: module", a.ModuleName, "declares RootCSS() but only the root project or", domModulePath, "may; ignoring")
+		}
+	}
+
+	slot := "middle"
+	if isRoot {
+		slot = "close"
+	}
+	// RootCSS deliberately NOT passed here — it has its own slot resolution above.
+	c.updateSSRModuleInSlot(a.ModuleName, a.CSS, a.JS, a.HTML, a.Icons, slot)
+}
+
+func (c *AssetMin) resolveAndApplyRootCSS() {
+	chosen := c.fromDom
+	if c.fromRoot != nil {
+		chosen = c.fromRoot
+	}
+
+	if chosen != nil {
+		// Single-override rule: the open slot only contains one item.
+		c.mainStyleCssHandler.mu.Lock()
+		c.mainStyleCssHandler.contentOpen = []*ContentFile{{Path: chosen.name, Content: []byte(chosen.css)}}
+		c.mainStyleCssHandler.cacheValid = false
+		c.mainStyleCssHandler.mu.Unlock()
+	} else {
+		// Clear the open slot if no RootCSS remains
+		c.mainStyleCssHandler.mu.Lock()
+		c.mainStyleCssHandler.contentOpen = nil
+		c.mainStyleCssHandler.cacheValid = false
+		c.mainStyleCssHandler.mu.Unlock()
+	}
 }
 
 func isRootDir(dir, rootDir string) bool {
@@ -180,14 +218,15 @@ func (c *AssetMin) ReloadSSRModule(moduleDir string) error {
 		return err
 	}
 
-	slot := "middle"
-	if strings.Contains(moduleDir, "tinywasm/dom") {
-		slot = "open"
-	} else if isRootDir(moduleDir, c.RootDir) {
-		slot = "close"
+	isDom := strings.Contains(moduleDir, domModulePath)
+	isRoot := isRootDir(moduleDir, c.RootDir)
+
+	c.routeAssets(assets, isRoot, isDom)
+
+	if isDom || isRoot || assets.RootCSS != "" {
+		c.resolveAndApplyRootCSS()
 	}
 
-	c.updateSSRModuleInSlot(assets.ModuleName, assets.CSS, assets.JS, assets.HTML, assets.Icons, slot)
 	c.mu.Unlock()
 
 	// Refresh assets only if they were actually changed/extracted
