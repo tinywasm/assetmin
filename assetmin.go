@@ -32,7 +32,7 @@ type AssetMin struct {
 	scanner             *importScanner
 	minifyEnabled       bool
 	fromRoot            *rootCandidate
-	fromDom             *rootCandidate
+	fromCss             *rootCandidate
 }
 
 type rootCandidate struct {

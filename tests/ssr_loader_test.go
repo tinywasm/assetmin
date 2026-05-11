@@ -17,20 +17,20 @@ func TestSSRLoader(t *testing.T) {
 
 		// Mock module directories
 		rootModule := env.BaseDir
-		domModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "dom")
+		cssModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "css")
 		extModule := filepath.Join(env.BaseDir, "vendor", "other", "module")
 
-		os.MkdirAll(domModule, 0755)
+		os.MkdirAll(cssModule, 0755)
 		os.MkdirAll(extModule, 0755)
 
 		// Write ssr.go files
 		os.WriteFile(filepath.Join(rootModule, "ssr.go"), []byte("package root\nfunc RenderCSS() string { return \".root{color:blue;}\" }"), 0644)
-		os.WriteFile(filepath.Join(domModule, "ssr.go"), []byte("package dom\nfunc RenderCSS() string { return \".dom{color:red;}\" }"), 0644)
+		os.WriteFile(filepath.Join(cssModule, "ssr.go"), []byte("package css\nfunc RenderCSS() string { return \".dom{color:red;}\" }"), 0644)
 		os.WriteFile(filepath.Join(extModule, "ssr.go"), []byte("package ext\nfunc RenderCSS() string { return \".ext{color:green;}\" }"), 0644)
 
 		am.RootDir = rootModule
 		am.SetListModulesFn(func(root string) ([]string, error) {
-			return []string{domModule, extModule, rootModule}, nil
+			return []string{cssModule, extModule, rootModule}, nil
 		})
 
 		// Since we now scan for imports, we need a .go file importing the external module

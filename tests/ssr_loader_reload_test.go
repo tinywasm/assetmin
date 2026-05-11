@@ -12,26 +12,26 @@ func TestReload_AppGainsRootCSS(t *testing.T) {
 	am := env.AssetsHandler
 
 	rootModule := env.BaseDir
-	domModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "dom")
-	os.MkdirAll(domModule, 0755)
+	cssModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "css")
+	os.MkdirAll(cssModule, 0755)
 
-	os.WriteFile(filepath.Join(domModule, "ssr.go"), []byte(`package dom
-func RootCSS() string { return ":root{--dom:1;}" }
+	os.WriteFile(filepath.Join(cssModule, "ssr.go"), []byte(`package css
+func RootCSS() string { return ":root{--css:1;}" }
 `), 0644)
 
 	am.RootDir = rootModule
 	am.SetListModulesFn(func(root string) ([]string, error) {
-		return []string{domModule, rootModule}, nil
+		return []string{cssModule, rootModule}, nil
 	})
 
 	am.LoadSSRModules()
 	am.WaitForSSRLoad(1e9)
 
-	if !am.ContainsCSS("--dom:1") {
-		t.Fatal("Initial dom root css not found")
+	if !am.ContainsCSS("--css:1") {
+		t.Fatal("Initial framework css tokens not found")
 	}
 
-	// App gains RootCSS
+	// App gains RootCSS override
 	os.WriteFile(filepath.Join(rootModule, "ssr.go"), []byte(`package root
 func RootCSS() string { return ":root{--app:1;}" }
 `), 0644)
@@ -40,12 +40,13 @@ func RootCSS() string { return ":root{--app:1;}" }
 		t.Fatal(err)
 	}
 
-	css, _ := am.GetMinifiedCSS()
-	if !strings.Contains(string(css), "--app:1") {
-		t.Error("App root css should be present after reload")
+	output, _ := am.GetMinifiedCSS()
+	// Both must be present: framework tokens + app override (cascade resolves conflicts)
+	if !strings.Contains(string(output), "--css:1") {
+		t.Error("Framework css tokens should remain after app override")
 	}
-	if strings.Contains(string(css), "--dom:1") {
-		t.Error("Dom root css should have been overridden after reload")
+	if !strings.Contains(string(output), "--app:1") {
+		t.Error("App root css should be present after reload")
 	}
 }
 
@@ -54,19 +55,19 @@ func TestReload_AppLosesRootCSS(t *testing.T) {
 	am := env.AssetsHandler
 
 	rootModule := env.BaseDir
-	domModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "dom")
-	os.MkdirAll(domModule, 0755)
+	cssModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "css")
+	os.MkdirAll(cssModule, 0755)
 
 	os.WriteFile(filepath.Join(rootModule, "ssr.go"), []byte(`package root
 func RootCSS() string { return ":root{--app:1;}" }
 `), 0644)
-	os.WriteFile(filepath.Join(domModule, "ssr.go"), []byte(`package dom
-func RootCSS() string { return ":root{--dom:1;}" }
+	os.WriteFile(filepath.Join(cssModule, "ssr.go"), []byte(`package css
+func RootCSS() string { return ":root{--css:1;}" }
 `), 0644)
 
 	am.RootDir = rootModule
 	am.SetListModulesFn(func(root string) ([]string, error) {
-		return []string{domModule, rootModule}, nil
+		return []string{cssModule, rootModule}, nil
 	})
 
 	am.LoadSSRModules()
@@ -85,12 +86,12 @@ func RenderCSS() string { return ".other{}" }
 		t.Fatal(err)
 	}
 
-	css, _ := am.GetMinifiedCSS()
-	if strings.Contains(string(css), "--app:1") {
+	output, _ := am.GetMinifiedCSS()
+	if strings.Contains(string(output), "--app:1") {
 		t.Error("App root css should be gone")
 	}
-	if !strings.Contains(string(css), "--dom:1") {
-		t.Error("Should have fallen back to dom root css")
+	if !strings.Contains(string(output), "--css:1") {
+		t.Error("Framework css tokens should remain when app has no RootCSS")
 	}
 }
 
@@ -99,13 +100,13 @@ func TestReload_ThirdPartyAddsRootCSS(t *testing.T) {
 	am := env.AssetsHandler
 
 	rootModule := env.BaseDir
-	domModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "dom")
+	cssModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "css")
 	thirdModule := filepath.Join(env.BaseDir, "vendor", "other", "module")
-	os.MkdirAll(domModule, 0755)
+	os.MkdirAll(cssModule, 0755)
 	os.MkdirAll(thirdModule, 0755)
 
-	os.WriteFile(filepath.Join(domModule, "ssr.go"), []byte(`package dom
-func RootCSS() string { return ":root{--dom:1;}" }
+	os.WriteFile(filepath.Join(cssModule, "ssr.go"), []byte(`package css
+func RootCSS() string { return ":root{--css:1;}" }
 `), 0644)
 	os.WriteFile(filepath.Join(thirdModule, "ssr.go"), []byte(`package third
 func RenderCSS() string { return ".third{}" }
@@ -113,7 +114,7 @@ func RenderCSS() string { return ".third{}" }
 
 	am.RootDir = rootModule
 	am.SetListModulesFn(func(root string) ([]string, error) {
-		return []string{domModule, thirdModule, rootModule}, nil
+		return []string{cssModule, thirdModule, rootModule}, nil
 	})
 
 	am.LoadSSRModules()
@@ -128,11 +129,11 @@ func RootCSS() string { return ":root{--third:1;}" }
 		t.Fatal(err)
 	}
 
-	css, _ := am.GetMinifiedCSS()
-	if !strings.Contains(string(css), "--dom:1") {
-		t.Error("Dom root css should still be present")
+	output, _ := am.GetMinifiedCSS()
+	if !strings.Contains(string(output), "--css:1") {
+		t.Error("Framework css tokens should still be present")
 	}
-	if strings.Contains(string(css), "--third:1") {
+	if strings.Contains(string(output), "--third:1") {
 		t.Error("Third party root css should be ignored even on reload")
 	}
 }

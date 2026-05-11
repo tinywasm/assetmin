@@ -9,61 +9,63 @@ import (
 	"time"
 )
 
-func TestLoader_DomDefaultWins_NoAppRoot(t *testing.T) {
-	env := setupTestEnv("dom_wins", t)
+func TestLoader_CssDefaultWins_NoAppRoot(t *testing.T) {
+	env := setupTestEnv("css_wins", t)
 	am := env.AssetsHandler
 
 	rootModule := env.BaseDir
-	domModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "dom")
-	os.MkdirAll(domModule, 0755)
+	cssModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "css")
+	os.MkdirAll(cssModule, 0755)
 
-	os.WriteFile(filepath.Join(domModule, "ssr.go"), []byte(`package dom
-func RootCSS() string { return ":root{--dom:1;}" }
+	os.WriteFile(filepath.Join(cssModule, "ssr.go"), []byte(`package css
+func RootCSS() string { return ":root{--css:1;}" }
 `), 0644)
 
 	am.RootDir = rootModule
 	am.SetListModulesFn(func(root string) ([]string, error) {
-		return []string{domModule, rootModule}, nil
+		return []string{cssModule, rootModule}, nil
 	})
 
 	am.LoadSSRModules()
 	am.WaitForSSRLoad(1 * time.Second)
 
-	css, _ := am.GetMinifiedCSS()
-	if !strings.Contains(string(css), "--dom:1") {
-		t.Errorf("Expected dom root css, got: %s", string(css))
+	output, _ := am.GetMinifiedCSS()
+	if !strings.Contains(string(output), "--css:1") {
+		t.Errorf("Expected framework css tokens, got: %s", string(output))
 	}
 }
 
-func TestLoader_AppOverridesDom(t *testing.T) {
-	env := setupTestEnv("app_overrides", t)
+func TestLoader_AppAndCssBothInjected(t *testing.T) {
+	env := setupTestEnv("app_and_css", t)
 	am := env.AssetsHandler
 
 	rootModule := env.BaseDir
-	domModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "dom")
-	os.MkdirAll(domModule, 0755)
+	cssModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "css")
+	os.MkdirAll(cssModule, 0755)
 
 	os.WriteFile(filepath.Join(rootModule, "ssr.go"), []byte(`package root
 func RootCSS() string { return ":root{--app:1;}" }
 `), 0644)
-	os.WriteFile(filepath.Join(domModule, "ssr.go"), []byte(`package dom
-func RootCSS() string { return ":root{--dom:1;}" }
+	os.WriteFile(filepath.Join(cssModule, "ssr.go"), []byte(`package css
+func RootCSS() string { return ":root{--css:1;}" }
 `), 0644)
 
 	am.RootDir = rootModule
 	am.SetListModulesFn(func(root string) ([]string, error) {
-		return []string{domModule, rootModule}, nil
+		return []string{cssModule, rootModule}, nil
 	})
 
 	am.LoadSSRModules()
 	am.WaitForSSRLoad(1 * time.Second)
 
-	css, _ := am.GetMinifiedCSS()
-	if !strings.Contains(string(css), "--app:1") {
-		t.Errorf("Expected app root css to override dom, got: %s", string(css))
+	output, _ := am.GetMinifiedCSS()
+	// Both must be present: framework tokens first, app override second.
+	// CSS cascade resolves variable conflicts — app wins for tokens it redeclares.
+	if !strings.Contains(string(output), "--css:1") {
+		t.Errorf("Expected framework css tokens, got: %s", string(output))
 	}
-	if strings.Contains(string(css), "--dom:1") {
-		t.Errorf("Dom root css should have been overridden")
+	if !strings.Contains(string(output), "--app:1") {
+		t.Errorf("Expected app root css override, got: %s", string(output))
 	}
 }
 
@@ -72,9 +74,9 @@ func TestLoader_ThirdPartyIgnored(t *testing.T) {
 	am := env.AssetsHandler
 
 	rootModule := env.BaseDir
-	domModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "dom")
+	cssModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "css")
 	thirdModule := filepath.Join(env.BaseDir, "vendor", "other", "module")
-	os.MkdirAll(domModule, 0755)
+	os.MkdirAll(cssModule, 0755)
 	os.MkdirAll(thirdModule, 0755)
 
 	var logs []string
@@ -82,8 +84,8 @@ func TestLoader_ThirdPartyIgnored(t *testing.T) {
 		logs = append(logs, strings.Join(strings.Split(strings.Trim(fmt.Sprint(m...), "[]"), " "), " "))
 	})
 
-	os.WriteFile(filepath.Join(domModule, "ssr.go"), []byte(`package dom
-func RootCSS() string { return ":root{--dom:1;}" }
+	os.WriteFile(filepath.Join(cssModule, "ssr.go"), []byte(`package css
+func RootCSS() string { return ":root{--css:1;}" }
 `), 0644)
 	os.WriteFile(filepath.Join(thirdModule, "ssr.go"), []byte(`package third
 func RootCSS() string { return ":root{--third:1;}" }
@@ -91,7 +93,7 @@ func RootCSS() string { return ":root{--third:1;}" }
 
 	am.RootDir = rootModule
 	am.SetListModulesFn(func(root string) ([]string, error) {
-		return []string{domModule, thirdModule, rootModule}, nil
+		return []string{cssModule, thirdModule, rootModule}, nil
 	})
 
 	// Import third party to ensure it's loaded
@@ -102,11 +104,11 @@ import _ "other/module"
 	am.LoadSSRModules()
 	am.WaitForSSRLoad(1 * time.Second)
 
-	css, _ := am.GetMinifiedCSS()
-	if !strings.Contains(string(css), "--dom:1") {
-		t.Error("Dom root css missing")
+	output, _ := am.GetMinifiedCSS()
+	if !strings.Contains(string(output), "--css:1") {
+		t.Error("Framework css tokens missing")
 	}
-	if strings.Contains(string(css), "--third:1") {
+	if strings.Contains(string(output), "--third:1") {
 		t.Error("Third party root css should be ignored")
 	}
 

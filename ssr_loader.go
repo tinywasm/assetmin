@@ -9,9 +9,10 @@ import (
 	"time"
 )
 
-// domModulePath is the module path that provides the default `:root` theme
-// when the root project does not declare its own RootCSS().
-const domModulePath = "tinywasm/dom"
+// cssModulePath is the module path that provides the default `:root` theme
+// (all canonical design tokens). The root project may declare its own RootCSS()
+// to override individual tokens — both are injected, framework first.
+const cssModulePath = "tinywasm/css"
 
 // Module representa la salida de `go list -m -json all`
 type Module struct {
@@ -84,8 +85,8 @@ func (c *AssetMin) loadSSRModulesLocked() error {
 				if m.Path == "module" {
 					modules[i].Path = "other/module"
 				}
-				if m.Path == "dom" {
-					modules[i].Path = "tinywasm/dom"
+				if m.Path == "css" {
+					modules[i].Path = "tinywasm/css"
 				}
 			}
 		}
@@ -118,7 +119,7 @@ func (c *AssetMin) loadSSRModulesLocked() error {
 		}
 
 		// Always load exceptions
-		isDom := strings.Contains(m.Path, domModulePath)
+		isDom := strings.Contains(m.Path, cssModulePath)
 		isRoot := isRootDir(m.Dir, c.RootDir)
 		alwaysLoad := isDom || isRoot
 
@@ -140,7 +141,7 @@ func (c *AssetMin) loadSSRModulesLocked() error {
 
 			subDir := filepath.Join(m.Dir, sub)
 			if assets, err := ExtractSSRAssets(subDir); err == nil {
-				subIsDom := strings.Contains(subDir, domModulePath)
+				subIsDom := strings.Contains(subDir, cssModulePath)
 				subIsRoot := isRootDir(subDir, c.RootDir)
 				c.routeAssets(assets, subIsRoot, subIsDom)
 			}
@@ -156,7 +157,7 @@ func (c *AssetMin) routeAssets(a *SSRAssets, isRoot, isDom bool) {
 	if isRoot {
 		c.fromRoot = nil
 	} else if isDom {
-		c.fromDom = nil
+		c.fromCss = nil
 	}
 
 	if a.RootCSS != "" {
@@ -164,9 +165,9 @@ func (c *AssetMin) routeAssets(a *SSRAssets, isRoot, isDom bool) {
 		case isRoot:
 			c.fromRoot = &rootCandidate{name: a.ModuleName, css: a.RootCSS}
 		case isDom:
-			c.fromDom = &rootCandidate{name: a.ModuleName, css: a.RootCSS}
+			c.fromCss = &rootCandidate{name: a.ModuleName, css: a.RootCSS}
 		default:
-			c.Logger("warning: module", a.ModuleName, "declares RootCSS() but only the root project or", domModulePath, "may; ignoring")
+			c.Logger("warning: module", a.ModuleName, "declares RootCSS() but only the root project or", cssModulePath, "may; ignoring")
 		}
 	}
 
@@ -179,24 +180,21 @@ func (c *AssetMin) routeAssets(a *SSRAssets, isRoot, isDom bool) {
 }
 
 func (c *AssetMin) resolveAndApplyRootCSS() {
-	chosen := c.fromDom
+	// Inject framework tokens first, then project override.
+	// CSS cascade resolves conflicts: later :root {} wins per variable,
+	// so the project only needs to declare the tokens it wants to change.
+	var entries []*ContentFile
+	if c.fromCss != nil {
+		entries = append(entries, &ContentFile{Path: c.fromCss.name, Content: []byte(c.fromCss.css)})
+	}
 	if c.fromRoot != nil {
-		chosen = c.fromRoot
+		entries = append(entries, &ContentFile{Path: c.fromRoot.name, Content: []byte(c.fromRoot.css)})
 	}
 
-	if chosen != nil {
-		// Single-override rule: the open slot only contains one item.
-		c.mainStyleCssHandler.mu.Lock()
-		c.mainStyleCssHandler.contentOpen = []*ContentFile{{Path: chosen.name, Content: []byte(chosen.css)}}
-		c.mainStyleCssHandler.cacheValid = false
-		c.mainStyleCssHandler.mu.Unlock()
-	} else {
-		// Clear the open slot if no RootCSS remains
-		c.mainStyleCssHandler.mu.Lock()
-		c.mainStyleCssHandler.contentOpen = nil
-		c.mainStyleCssHandler.cacheValid = false
-		c.mainStyleCssHandler.mu.Unlock()
-	}
+	c.mainStyleCssHandler.mu.Lock()
+	c.mainStyleCssHandler.contentOpen = entries
+	c.mainStyleCssHandler.cacheValid = false
+	c.mainStyleCssHandler.mu.Unlock()
 }
 
 func isRootDir(dir, rootDir string) bool {
@@ -218,7 +216,7 @@ func (c *AssetMin) ReloadSSRModule(moduleDir string) error {
 		return err
 	}
 
-	isDom := strings.Contains(moduleDir, domModulePath)
+	isDom := strings.Contains(moduleDir, cssModulePath)
 	isRoot := isRootDir(moduleDir, c.RootDir)
 
 	c.routeAssets(assets, isRoot, isDom)
