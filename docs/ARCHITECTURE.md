@@ -9,7 +9,7 @@
 - **Memory Mode vs. Disk Mode**: Assets can be served directly from memory or written to disk for static serving.
 - **SSR Extraction**: Automatic extraction of assets from Go modules via `ssr.go` file analysis (AST parsing).
 - **Slot System**: Content is organized into three slots to ensure correct loading order:
-  - `open`: Base themes and CSS variables (e.g., from `tinywasm/dom`).
+  - `open`: Base themes and CSS variables (e.g., from `tinywasm/css`).
   - `middle`: External module assets.
   - `close`: Application-specific overrides.
 

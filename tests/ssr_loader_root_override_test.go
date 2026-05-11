@@ -35,8 +35,8 @@ func RootCSS() string { return ":root{--css:1;}" }
 	}
 }
 
-func TestLoader_AppAndCssBothInjected(t *testing.T) {
-	env := setupTestEnv("app_and_css", t)
+func TestLoader_AppFullyReplacesCss(t *testing.T) {
+	env := setupTestEnv("app_replaces_css", t)
 	am := env.AssetsHandler
 
 	rootModule := env.BaseDir
@@ -59,10 +59,9 @@ func RootCSS() string { return ":root{--css:1;}" }
 	am.WaitForSSRLoad(1 * time.Second)
 
 	output, _ := am.GetMinifiedCSS()
-	// Both must be present: framework tokens first, app override second.
-	// CSS cascade resolves variable conflicts — app wins for tokens it redeclares.
-	if !strings.Contains(string(output), "--css:1") {
-		t.Errorf("Expected framework css tokens, got: %s", string(output))
+	// Single-winner replacement: project beats framework.
+	if strings.Contains(string(output), "--css:1") {
+		t.Errorf("Framework css tokens should be absent when app provides RootCSS, got: %s", string(output))
 	}
 	if !strings.Contains(string(output), "--app:1") {
 		t.Errorf("Expected app root css override, got: %s", string(output))
