@@ -61,11 +61,11 @@ Function calls (`return compute()`) and any other dynamic expression evaluate to
 
 `:root { … }` is a global namespace. To prevent silent theme corruption from transitive dependencies, only one `RootCSS()` reaches the bundle:
 
-1. If the **root project** declares `RootCSS()` → it wins.
-2. Otherwise, if **`tinywasm/dom`** declares `RootCSS()` → it wins (the default fallback theme).
-3. If a **third-party module** (neither root nor dom) declares `RootCSS()` → ignored, with a warning logged via `Config.Logger`.
+1. If the **root project** declares `RootCSS()` → it wins, fully replacing any framework tokens.
+2. Otherwise, if **`tinywasm/css`** declares `RootCSS()` → it wins (the default fallback theme).
+3. If a **third-party module** (neither root nor css) declares `RootCSS()` → ignored, with a warning logged via `Config.Logger`.
 
-The fallback module path is the unexported constant `domModulePath = "tinywasm/dom"` in `ssr_loader.go`. This is the only place where `assetmin` references `dom` by name.
+The fallback module path is the unexported constant `cssModulePath = "tinywasm/css"` in `ssr_loader.go`.
 
 `RenderCSS()`, `RenderJS()`, `RenderHTML()`, and `IconSvg()` from third-party modules are NOT subject to single-override — they accumulate normally in the `middle` slot.
 
@@ -74,7 +74,7 @@ The fallback module path is the unexported constant `domModulePath = "tinywasm/d
 ```
 <head>
   …
-  [open]    — RootCSS() winner (root project or tinywasm/dom)
+  [open]    — RootCSS() single winner (app root or framework fallback)
   [middle]  — RenderCSS() / RenderJS() from imported dependencies
   [close]   — RenderCSS() / RenderJS() from the root project
   …
@@ -106,7 +106,7 @@ For local modules (e.g., via `replace` in `go.mod`), the orchestrator (`tinywasm
 am.ReloadSSRModule(moduleDir)
 ```
 
-The loader re-extracts the assets, re-evaluates the `RootCSS()` single-override (so an app that just gained or lost its own `RootCSS()` flips back and forth between its theme and dom's), and replaces in-memory bundle entries without duplication.
+The loader re-extracts the assets, re-evaluates the `RootCSS()` single-override (so an app that just gained or lost its own `RootCSS()` flips back and forth between its theme and framework's), and replaces in-memory bundle entries without duplication.
 
 ## Manual registration
 
@@ -116,7 +116,7 @@ If you have live struct instances implementing the SSR interfaces, register them
 am.RegisterComponents(myComponent1, myComponent2)
 ```
 
-Components implementing `RootCSS() string` route to the `open` slot under the same single-override rule (runtime registration is treated as coming from the app). See [Component Registration](COMPONENT_REGISTRATION.md) for the full interface list.
+Components implementing `RootCSS() string` route to the `open` slot under the same single-override rule (runtime registration is treated as coming from the app, so it replaces the framework theme). See [Component Registration](COMPONENT_REGISTRATION.md) for the full interface list.
 
 ## API summary
 

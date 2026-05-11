@@ -41,9 +41,9 @@ func RootCSS() string { return ":root{--app:1;}" }
 	}
 
 	output, _ := am.GetMinifiedCSS()
-	// Both must be present: framework tokens + app override (cascade resolves conflicts)
-	if !strings.Contains(string(output), "--css:1") {
-		t.Error("Framework css tokens should remain after app override")
+	// Single-winner replacement: app fully replaces framework
+	if strings.Contains(string(output), "--css:1") {
+		t.Error("Framework css tokens should be gone after app gains RootCSS")
 	}
 	if !strings.Contains(string(output), "--app:1") {
 		t.Error("App root css should be present after reload")
