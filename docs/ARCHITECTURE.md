@@ -7,7 +7,7 @@
 - **AssetMin**: The main struct that orchestrates the asset pipeline.
 - **Handlers**: Specific handlers for different asset types (`mainStyleCssHandler`, `mainJsHandler`, `spriteSvgHandler`, `indexHtmlHandler`).
 - **Memory Mode vs. Disk Mode**: Assets can be served directly from memory or written to disk for static serving.
-- **SSR Extraction**: Automatic extraction of assets from Go modules via `ssr.go` file analysis (AST parsing).
+- **SSR Extraction**: Automatic extraction of assets from Go modules via `ssr.go` file execution (compile-and-invoke mechanism).
 - **Slot System**: Content is organized into three slots to ensure correct loading order:
   - `open`: Base themes and CSS variables (e.g., from `tinywasm/css`).
   - `middle`: External module assets.
@@ -16,7 +16,7 @@
 ## Data Flow
 
 1.  **Discovery**: `assetmin` uses `go list` to find all modules in the project.
-2.  **Extraction**: For each module, it looks for `ssr.go` and extracts CSS, JS, HTML, and SVG icons using AST parsing.
+2.  **Extraction**: For each module, it looks for `ssr.go` and extracts CSS, JS, HTML, and SVG icons using a compile-and-invoke mechanism.
 3.  **Injection**: Extracted assets are injected into the appropriate handlers and slots.
 4.  **Processing**: Concatenation and Minification (using `tdewolff/minify`).
 5.  **Caching**: In-memory caching with thread-safe access.
@@ -24,4 +24,4 @@
 
 ## Hot Reload
 
-`assetmin` integrates with the dev server to support hot reloading. When a local `ssr.go` file changes, the changes are re-extracted and the in-memory cache is invalidated, providing instant updates without restarting the server.
+`assetmin` integrates with the dev server to support hot reloading. When a local `ssr.go` file changes, the module is re-compiled and executed to re-extract assets, and the in-memory cache is invalidated, providing instant updates without restarting the server.
