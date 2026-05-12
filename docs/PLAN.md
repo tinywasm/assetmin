@@ -106,18 +106,32 @@ When a single module changes, the extractor is re-run (still a single invocation
 ## Files modified
 
 - `ssr_register.go` — calls the new invoker instead of AST extractor.
+- `events.go` — replace private `isSSRMode` reference with public `IsSSRMode`.
 - `tests/ssr_extract_root_test.go`, `tests/css_ssr_hotreload_test.go`, `tests/ssr_test.go`, `tests/ssr_refresh_test.go` — rewritten to exercise the invoke path. Fixtures must adopt the DSL.
+
+## Test fixture requirements
+
+Every test that exercises `ExtractSSRAssets` or the combined invoker must provide a directory that satisfies `go run` / `go list`. Concretely, each stub module inside `t.TempDir()` must contain:
+
+- `go.mod` with a valid module path (e.g. `module example.com/testcomp/button`) and a `go` directive matching the project's toolchain.
+- At least one `.go` file with `package <name>` (the package name must match the last segment of the module path).
+- A `func SSRInstance() *stubSSR` (or equivalent) that implements all four SSR interfaces: `RenderCSS()`, `RenderHTML()`, `RenderJS()`, `IconSvg()`.
+
+Without `go.mod`, `go list` cannot resolve the import path and the combined extractor silently skips or errors the component. This is the root cause of tests finding fewer assets than expected.
+
+For tests that previously used bare `.go` files (no module), add a helper `writeStubModule(t, dir, modulePath, pkgName string, body string)` that writes `go.mod` and the stub `.go` file in one call. All new and migrated fixtures must use this helper.
 
 ## Steps
 
 1. Define and document the `SSRInstance()` convention in `assetmin/docs/SSR.md`.
 2. Implement `ssr_invoke.go`: component discovery → combined `main.go` template → single `go run` exec → JSON parse → per-component `SSRAssets`.
 3. Implement `ssr_cache.go`: hash-set cache, invalidates when any module's Go-file hashes change.
-4. Migrate one test fixture set (two minimal stub components) to the DSL + `SSRInstance()` and prove the combined invoker returns both components' assets in one run.
-5. Migrate the remaining fixtures.
-6. Delete `ssr_extract.go` and AST helpers (replaced by `ssr_invoke.go`).
-7. Run the full `tests/` suite; resolve regressions.
-8. Update `docs/ARCHITECTURE.md` and `docs/SSR.md` to describe the single-invocation compile-and-invoke pipeline.
+4. Fix `events.go`: replace `isSSRMode` (private, removed) with `IsSSRMode` (public).
+5. Add `writeStubModule` test helper (internal to `tests/` package) and migrate one fixture set (two components) to it — prove combined invoker returns both in one run.
+6. Migrate ALL remaining fixtures using `writeStubModule`; every `t.TempDir()` fixture must have `go.mod` + package + `SSRInstance()`.
+7. Delete `ssr_extract.go` and AST helpers (replaced by `ssr_invoke.go`).
+8. Run the full `tests/` suite; all tests must pass.
+9. Update `docs/ARCHITECTURE.md` and `docs/SSR.md` to describe the single-invocation compile-and-invoke pipeline.
 
 ## Acceptance
 
