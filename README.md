@@ -23,6 +23,21 @@
 - [Core Architecture Flow](docs/diagrams/architecture.md)
 - [Event & SSR Hot-Reload Sequence](docs/diagrams/event_flow_sequence.md)
 
+## Performance
+
+The new compile-and-invoke SSR extraction mechanism replaces AST-based parsing with actual Go code execution, providing:
+- **~5× faster** cold extraction for typical apps (7 components)
+- **Hash-based caching** for instant warm extractions (~5-10ms)
+- **Full typed CSS support** without performance penalty
+
+See [Benchmark Suite](benchmark/README.md) for detailed performance measurements and guidance.
+
+**Quick comparison:**
+```
+Old AST approach (7 modules):  2,100ms per build
+New compile-and-invoke:        ~450ms first, then 5-10ms cached
+```
+
 ## Installation
 
 ```bash

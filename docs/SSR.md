@@ -1,6 +1,12 @@
 # SSR Module Asset Extraction & Loading
 
-`assetmin` automatically discovers Go modules in the project tree, parses each `ssr.go` file (build tag `!wasm`) via AST, and routes the extracted assets — CSS, JS, HTML, SVG icons — into the rendered `<head>`. Modules ship their own assets without ever importing `assetmin`; the contract is purely the function names exposed by `ssr.go`.
+`assetmin` automatically discovers Go modules in the project tree and extracts their assets — CSS, JS, HTML, SVG icons — routing them into the rendered `<head>`. Modules ship their own assets without ever importing `assetmin`; the contract is purely the function names and conventions in `ssr.go`.
+
+## Asset Extraction Mechanism
+
+Assets are extracted via **compile-and-invoke**: `assetmin` generates a single combined `main.go` that imports all discovered components, instantiates each via `SSRInstance()`, and invokes their asset methods (`RenderCSS()`, `RenderHTML()`, etc.), collecting the results into JSON. This replaces earlier AST-based parsing, which could only handle string literals and simple concatenation.
+
+The extraction happens once per unique set of component file hashes (cached), then the aggregated output is parsed into per-component `SSRAssets`.
 
 ## Asset Declaration (Contract)
 
@@ -47,15 +53,54 @@ func IconSvg() map[string]string {
 | `RenderHTML()` | `HTML` | same as `RenderCSS` | Only if publicly readable |
 | `IconSvg()` | `Icons` | sprite registry (no slot) | Keys are icon IDs |
 
-### Supported extraction patterns
+### The `SSRInstance()` convention
 
-Each function must return a value the AST walker can evaluate statically:
+To enable compile-and-invoke extraction, each module's `ssr.go` must expose a function:
 
-- **String literal** — `return ":root{--x:1;}"`
-- **`//go:embed` var** — `return rootCSS` where `rootCSS` is tagged
-- **String concatenation** — `return ":root{" + "}"`
+```go
+// SSRInstance returns a zero-value instance implementing the SSR interfaces.
+// This is called by the generated asset extractor to collect asset values
+// without requiring reflection or complex setup.
+func SSRInstance() *MyComponent {
+    return &MyComponent{}
+}
+```
 
-Function calls (`return compute()`) and any other dynamic expression evaluate to the empty string. If you need runtime computation, register an instance via [`RegisterComponents`](COMPONENT_REGISTRATION.md) instead.
+Replace `MyComponent` with your actual struct (or interface type implementing `RenderCSS()`, `RenderHTML()`, etc.). The instance does not need to be initialized with application state — it only needs to be capable of calling the asset methods.
+
+**Example:**
+
+```go
+//go:build !wasm
+
+package button
+
+type Button struct{}
+
+func (b *Button) RenderCSS() interface{ String() string } {
+    return css.New(
+        css.Rule(".button", css.Decl("padding", "1rem")),
+    )
+}
+
+func (b *Button) RenderHTML() string { return `<button></button>` }
+func (b *Button) RenderJS() string   { return "" }
+func (b *Button) IconSvg() map[string]string { return nil }
+
+func SSRInstance() *Button {
+    return &Button{}
+}
+```
+
+### Supported asset method returns
+
+Asset methods may now return dynamic values — function calls, conditionals, Go DSL helpers, etc. — because they are evaluated by actual Go code execution, not static AST parsing. For example:
+
+- `RenderCSS()` can return typed CSS objects with `.String()` methods (from `tinywasm/css` or similar)
+- `RenderHTML()` and `RenderJS()` remain strings but can be computed
+- `IconSvg()` returns a computed map
+
+The compile-and-invoke mechanism removes the limitation of static evaluation. If you were previously returning empty strings due to function calls or dynamic logic, you can now express those values directly in the asset methods.
 
 ## Single-override rule for `RootCSS()`
 

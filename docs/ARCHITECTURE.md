@@ -7,7 +7,7 @@
 - **AssetMin**: The main struct that orchestrates the asset pipeline.
 - **Handlers**: Specific handlers for different asset types (`mainStyleCssHandler`, `mainJsHandler`, `spriteSvgHandler`, `indexHtmlHandler`).
 - **Memory Mode vs. Disk Mode**: Assets can be served directly from memory or written to disk for static serving.
-- **SSR Extraction**: Automatic extraction of assets from Go modules via `ssr.go` file analysis (AST parsing).
+- **SSR Extraction**: Automatic extraction of assets from Go modules via compile-and-invoke mechanism (replaced AST parsing).
 - **Slot System**: Content is organized into three slots to ensure correct loading order:
   - `open`: Base themes and CSS variables (e.g., from `tinywasm/css`).
   - `middle`: External module assets.
@@ -16,11 +16,22 @@
 ## Data Flow
 
 1.  **Discovery**: `assetmin` uses `go list` to find all modules in the project.
-2.  **Extraction**: For each module, it looks for `ssr.go` and extracts CSS, JS, HTML, and SVG icons using AST parsing.
-3.  **Injection**: Extracted assets are injected into the appropriate handlers and slots.
-4.  **Processing**: Concatenation and Minification (using `tdewolff/minify`).
-5.  **Caching**: In-memory caching with thread-safe access.
-6.  **Output**: HTTP serving or File system writing.
+2.  **Compilation**: A temporary `main.go` is generated that imports all modules and invokes their `SSRInstance()` functions.
+3.  **Extraction**: `go run main.go` executes once, calling asset methods (`RenderCSS()`, `RenderHTML()`, etc.) and collecting results as JSON.
+4.  **Caching**: Results are cached by module file hash set to avoid re-compilation when nothing changed.
+5.  **Injection**: Extracted assets are injected into the appropriate handlers and slots.
+6.  **Processing**: Concatenation and Minification (using `tdewolff/minify`).
+7.  **Output**: HTTP serving or File system writing.
+
+## Compile-and-Invoke Mechanism
+
+The new extraction mechanism replaces AST-based parsing with actual Go code compilation and execution:
+
+- **Generated Main**: `assetmin` creates a temporary `main.go` that imports all discovered component modules
+- **Single Invocation**: All components are instantiated and their asset methods called in one `go run` execution (~300ms)
+- **Hash-based Cache**: Results are keyed by the MD5 hash of all module Go files; cached results are reused if hashes match
+- **Type Safety**: Supports typed CSS builders (e.g., `css.New(Rule(...))`) and any dynamic Go expression in asset methods
+- **Better DX**: Compiler errors from invalid components are surfaced verbatim to developers
 
 ## Hot Reload
 
