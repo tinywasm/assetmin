@@ -14,7 +14,7 @@ func BenchmarkExtractSSRAssets_SingleModule(b *testing.B) {
 
 	// Setup parent go.mod
 	gomod := `module example.com/bench
-go 1.21
+go 1.24
 `
 	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(gomod), 0644); err != nil {
 		b.Fatalf("Failed to write parent go.mod: %v", err)
@@ -23,14 +23,12 @@ go 1.21
 	// Create a test module
 	moduleDir := createTestModule(b, tmpDir, "example.com/bench/button", "button",
 		`type Button struct{}
-func (b *Button) RenderCSS() interface{ String() string } {
-	return StringValue(".button { padding: 1rem; color: blue; }")
+func (b *Button) RenderCSS() *css.Stylesheet {
+	return css.New(css.Raw(".button { padding: 1rem; color: blue; }"))
 }
 func (b *Button) RenderHTML() string { return "<button></button>" }
 func (b *Button) RenderJS() string   { return "console.log('button');" }
 func (b *Button) IconSvg() map[string]string { return nil }
-type StringValue string
-func (s StringValue) String() string { return string(s) }
 `)
 
 	b.ResetTimer()
@@ -48,7 +46,7 @@ func BenchmarkExtractSSRAssets_ThreeModules(b *testing.B) {
 
 	// Setup parent go.mod
 	gomod := `module example.com/bench
-go 1.21
+go 1.24
 `
 	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(gomod), 0644); err != nil {
 		b.Fatalf("Failed to write parent go.mod: %v", err)
@@ -57,38 +55,32 @@ go 1.21
 	// Create three test modules
 	buttonDir := createTestModule(b, tmpDir, "example.com/bench/button", "button",
 		`type Button struct{}
-func (b *Button) RenderCSS() interface{ String() string } {
-	return StringValue(".btn { padding: 0.5rem; }")
+func (b *Button) RenderCSS() *css.Stylesheet {
+	return css.New(css.Raw(".btn { padding: 0.5rem; }"))
 }
 func (b *Button) RenderHTML() string { return "<button></button>" }
 func (b *Button) RenderJS() string   { return "" }
 func (b *Button) IconSvg() map[string]string { return nil }
-type StringValue string
-func (s StringValue) String() string { return string(s) }
 `)
 
 	cardDir := createTestModule(b, tmpDir, "example.com/bench/card", "card",
 		`type Card struct{}
-func (c *Card) RenderCSS() interface{ String() string } {
-	return StringValue(".card { border: 1px solid #ccc; border-radius: 4px; }")
+func (c *Card) RenderCSS() *css.Stylesheet {
+	return css.New(css.Raw(".card { border: 1px solid #ccc; border-radius: 4px; }"))
 }
 func (c *Card) RenderHTML() string { return "<div class=\"card\"></div>" }
 func (c *Card) RenderJS() string   { return "" }
 func (c *Card) IconSvg() map[string]string { return nil }
-type StringValue string
-func (s StringValue) String() string { return string(s) }
 `)
 
 	formDir := createTestModule(b, tmpDir, "example.com/bench/form", "form",
 		`type Form struct{}
-func (f *Form) RenderCSS() interface{ String() string } {
-	return StringValue("input, textarea { padding: 0.25rem; border: 1px solid #ddd; }")
+func (f *Form) RenderCSS() *css.Stylesheet {
+	return css.New(css.Raw("input, textarea { padding: 0.25rem; border: 1px solid #ddd; }"))
 }
 func (f *Form) RenderHTML() string { return "<form></form>" }
 func (f *Form) RenderJS() string   { return "" }
 func (f *Form) IconSvg() map[string]string { return nil }
-type StringValue string
-func (s StringValue) String() string { return string(s) }
 `)
 
 	// Warm up cache by extracting all modules once
@@ -112,14 +104,14 @@ func BenchmarkExtractSSRAssets_LargeCSS(b *testing.B) {
 
 	// Setup parent go.mod
 	gomod := `module example.com/bench
-go 1.21
+go 1.24
 `
 	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(gomod), 0644); err != nil {
 		b.Fatalf("Failed to write parent go.mod: %v", err)
 	}
 
 	// Create a module with more substantial CSS
-	css := `.component {
+	cssRaw := `.component {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -161,15 +153,13 @@ go 1.21
 
 	moduleDir := createTestModule(b, tmpDir, "example.com/bench/design", "design",
 		fmt.Sprintf(`type Design struct{}
-func (d *Design) RenderCSS() interface{ String() string } {
-	return StringValue(%q)
+func (d *Design) RenderCSS() *css.Stylesheet {
+	return css.New(css.Raw(%q))
 }
 func (d *Design) RenderHTML() string { return "<div class=\"component\"></div>" }
 func (d *Design) RenderJS() string   { return "" }
 func (d *Design) IconSvg() map[string]string { return nil }
-type StringValue string
-func (s StringValue) String() string { return string(s) }
-`, css))
+`, cssRaw))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -180,6 +170,62 @@ func (s StringValue) String() string { return string(s) }
 	}
 }
 
+// BenchmarkIncrementalChange mide el wall-time real del dev loop:
+// edita un .go entre iteraciones, forzando invalidación de hash y re-compile.
+func BenchmarkIncrementalChange(b *testing.B) {
+    tmpDir := b.TempDir()
+
+    // Setup parent go.mod
+    gomod := `module example.com/bench
+go 1.24
+`
+    if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(gomod), 0644); err != nil {
+        b.Fatalf("Failed to write parent go.mod: %v", err)
+    }
+
+    // Create a test module
+    modulePath := "example.com/bench/button"
+    pkgName := "button"
+    moduleDir := filepath.Join(tmpDir, pkgName)
+    if err := os.MkdirAll(moduleDir, 0755); err != nil {
+        b.Fatalf("Failed to create module directory: %v", err)
+    }
+
+    // Write go.mod
+    modContent := fmt.Sprintf("module %s\n\ngo 1.24\n\nrequire github.com/tinywasm/css v0.0.4\n", modulePath)
+    if err := os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte(modContent), 0644); err != nil {
+        b.Fatalf("Failed to write go.mod: %v", err)
+    }
+
+    // Initial ssr.go
+    writeSsr := func(val int) {
+        content := fmt.Sprintf(`//go:build !wasm
+package button
+import "github.com/tinywasm/css"
+type Button struct{}
+func (b *Button) RenderCSS() *css.Stylesheet {
+	return css.New(css.Raw(".btn{color:rgb(%d,0,0);}"))
+}
+func SSRInstance() *Button { return &Button{} }
+`, val)
+        if err := os.WriteFile(filepath.Join(moduleDir, "ssr.go"), []byte(content), 0644); err != nil {
+            b.Fatalf("Failed to write ssr.go: %v", err)
+        }
+    }
+
+    b.ResetTimer()
+    for i := 0; i < b.N; i++ {
+        // 1. Modificar ssr.go para invalidar hash
+        writeSsr(i % 256)
+
+        // 2. Medir ExtractSSRAssets end-to-end (forzará recompilación porque el hash cambió)
+        _, err := assetmin.ExtractSSRAssets(moduleDir)
+        if err != nil {
+            b.Fatalf("Error extracting assets: %v", err)
+        }
+    }
+}
+
 // createTestModule is a helper to create a properly structured test module.
 func createTestModule(b *testing.B, parentDir, modulePath, pkgName, body string) string {
 	moduleDir := filepath.Join(parentDir, pkgName)
@@ -188,7 +234,7 @@ func createTestModule(b *testing.B, parentDir, modulePath, pkgName, body string)
 	}
 
 	// Write go.mod
-	gomod := fmt.Sprintf("module %s\n\ngo 1.21\n", modulePath)
+	gomod := fmt.Sprintf("module %s\n\ngo 1.24\n\nrequire github.com/tinywasm/css v0.0.4\n", modulePath)
 	if err := os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte(gomod), 0644); err != nil {
 		b.Fatalf("Failed to write go.mod: %v", err)
 	}
@@ -201,6 +247,8 @@ func createTestModule(b *testing.B, parentDir, modulePath, pkgName, body string)
 	ssrGo := fmt.Sprintf(`//go:build !wasm
 
 package %s
+
+import "github.com/tinywasm/css"
 
 %s
 

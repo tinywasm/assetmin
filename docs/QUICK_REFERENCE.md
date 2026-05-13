@@ -23,6 +23,20 @@ config := &assetmin.Config{
 am := assetmin.NewAssetMin(config)
 ```
 
+## SSR & Component Registration
+
+### Manual Component Registration
+
+```go
+// Any struct implementing SSR interfaces
+am.RegisterComponents(button, card)
+```
+
+### SSR Conventions
+- **Components:** Must export `SSRInstance() *T`.
+- **Core Modules:** Like `tinywasm/css`, may expose package-level functions instead.
+- **Typed CSS:** `RenderCSS()` and `RootCSS()` return `*css.Stylesheet` (from `github.com/tinywasm/css`).
+
 ## File Events
 
 ```go
@@ -67,11 +81,8 @@ mode := am.GetWorkMode()
 ## Manual Refresh
 
 ```go
-// Refresh JavaScript bundle
-am.RefreshAsset(".js")
-
-// Refresh CSS bundle
-am.RefreshAsset(".css")
+// Refresh WASM-related assets (.js, .html)
+am.RefreshWasmAssets()
 ```
 
 ## Utility Methods
@@ -89,37 +100,15 @@ files := am.UnobservedFiles()
 ```go
 config := &assetmin.Config{
     OutputDir: "web/public",
-    GetRuntimeInitializerJS: func() (string, error) {
-        return `
-            const go = new Go();
-            WebAssembly.instantiateStreaming(
-                fetch("main.wasm"),
-                go.importObject
-            ).then((result) => {
-                go.run(result.instance);
-            });
-        `, nil
+    GetSSRClientInitJS: func() (string, error) {
+        return `console.log("WASM init");`, nil
     },
 }
 
 am := assetmin.NewAssetMin(config)
 
 // When WASM binary changes
-am.RefreshAsset(".js")
-```
-
-## File Watcher Integration
-
-```go
-// Example with fsnotify or similar
-watcher.Watch("src", func(event FileEvent) {
-    am.NewFileEvent(
-        event.Name,
-        filepath.Ext(event.Name),
-        event.Path,
-        event.Type, // "create", "write", "remove"
-    )
-})
+am.RefreshWasmAssets()
 ```
 
 ## Development vs Production
@@ -139,8 +128,7 @@ func main() {
         am.EnsureOutputDirectoryExists()
         
         // Build all assets
-        am.RefreshAsset(".js")
-        am.RefreshAsset(".css")
+        am.RefreshWasmAssets()
     } else {
         // Development: serve from memory
         mux := http.NewServeMux()
@@ -173,46 +161,9 @@ func main() {
 - Fragments merged
 - Complete documents ignored
 
-## Common Patterns
-
-### Hot Reload Setup
-
-```go
-// In your file watcher
-func onFileChange(path string) {
-    ext := filepath.Ext(path)
-    name := filepath.Base(path)
-    
-    if err := am.NewFileEvent(name, ext, path, "write"); err != nil {
-        log.Printf("Error: %v", err)
-    }
-}
-```
-
-### Build Script
-
-```go
-func build() {
-    am.SetWorkMode(assetmin.DiskMode)
-    am.EnsureOutputDirectoryExists()
-    
-    // Process all source files
-    filepath.Walk("src", func(path string, info os.FileInfo, err error) error {
-        if err != nil || info.IsDir() {
-            return err
-        }
-        
-        ext := filepath.Ext(path)
-        if slices.Contains(am.SupportedExtensions(), ext) {
-            am.NewFileEvent(info.Name(), ext, path, "create")
-        }
-        return nil
-    })
-}
-```
-
 ## Full Documentation
 
 - [API Documentation](API.md) - Complete reference
-- [Roadmap](ROADMAP.md) - Planned features
+- [Architecture](ARCHITECTURE.md) - Internal design
+- [SSR Documentation](SSR.md) - Module discovery & extraction
 - [Contributing](CONTRIBUTING.md) - Contribution guide

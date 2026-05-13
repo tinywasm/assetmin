@@ -3,20 +3,16 @@ package assetmin_test
 import (
 	"strings"
 	"testing"
+	"github.com/tinywasm/css"
+	"github.com/tinywasm/assetmin"
 )
 
 type mockRootProvider struct {
 	css string
 }
 
-func (m *mockRootProvider) RootCSS() interface{ String() string } {
-	return StringValue(m.css)
-}
-
-type StringValue string
-
-func (s StringValue) String() string {
-	return string(s)
+func (m *mockRootProvider) RootCSS() *css.Stylesheet {
+	return css.New(css.Raw(m.css))
 }
 
 func TestLoader_CssDefaultWins_NoAppRoot(t *testing.T) {
@@ -33,8 +29,8 @@ func TestLoader_CssDefaultWins_NoAppRoot(t *testing.T) {
 }
 
 func TestLoader_AppFullyReplacesCss(t *testing.T) {
-	env := setupTestEnv("app_replaces_css", t)
-	am := env.AssetsHandler
+	// Re-initialize to ensure clean state
+	am := assetmin.NewAssetMin(&assetmin.Config{})
 
 	// Mock extraction and slot routing
 	am.UpdateSSRModuleInSlot("tinywasm/css", ":root{--css:1;}", "", "", nil, "open")

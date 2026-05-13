@@ -4,7 +4,7 @@
 
 ## Asset Extraction Mechanism
 
-Assets are extracted via **compile-and-invoke**: `assetmin` generates a single combined `main.go` that imports all discovered components, instantiates each via `SSRInstance()`, and invokes their asset methods (`RenderCSS()`, `RenderHTML()`, etc.), collecting the results into JSON. This replaces earlier AST-based parsing, which could only handle string literals and simple concatenation.
+Assets are extracted via **compile-and-invoke**: `assetmin` generates a single combined `main.go` that imports all discovered components, instantiates each via `SSRInstance()` (for components) or calls package-level functions (for modules like `tinywasm/css`), and invokes their asset methods (`RenderCSS()`, `RenderHTML()`, etc.), collecting the results into JSON. This replaces earlier AST-based parsing, which could only handle string literals and simple concatenation.
 
 The extraction happens once per unique set of component file hashes (cached), then the aggregated output is parsed into per-component `SSRAssets`.
 
@@ -17,19 +17,26 @@ A module exposes its assets by adding an `ssr.go` file in its package root:
 
 package mypkg
 
-import _ "embed"
+import (
+    _ "embed"
+    "github.com/tinywasm/css"
+)
 
 //go:embed theme.css
-var rootCSS string
+var rootCSSRaw string
 
 // Default `:root { … }` theme tokens. Routed to the `open` slot
 // (rendered first in <head>). At most one module wins this slot —
 // see "Single-override rule" below.
-func RootCSS() string { return rootCSS }
+func RootCSS() *css.Stylesheet {
+    return css.New(css.Raw(rootCSSRaw))
+}
 
 // Component-level CSS. Routed to the `middle` slot for dependencies
 // or to the `close` slot when this is the root project.
-func RenderCSS() string { return `.my-widget { … }` }
+func RenderCSS() *css.Stylesheet {
+    return css.New(css.Rule(".my-widget", css.Decl("color", "red")))
+}
 
 // Component-level JS. Same slot routing as RenderCSS.
 func RenderJS() string { return `console.log("ready")` }
@@ -68,6 +75,8 @@ func SSRInstance() *MyComponent {
 
 Replace `MyComponent` with your actual struct (or interface type implementing `RenderCSS()`, `RenderHTML()`, etc.). The instance does not need to be initialized with application state — it only needs to be capable of calling the asset methods.
 
+**Exception:** Modules like `tinywasm/css` that expose package-level functions instead of an instance are also supported. The extractor detects both patterns.
+
 **Example:**
 
 ```go
@@ -75,9 +84,11 @@ Replace `MyComponent` with your actual struct (or interface type implementing `R
 
 package button
 
+import "github.com/tinywasm/css"
+
 type Button struct{}
 
-func (b *Button) RenderCSS() interface{ String() string } {
+func (b *Button) RenderCSS() *css.Stylesheet {
     return css.New(
         css.Rule(".button", css.Decl("padding", "1rem")),
     )
@@ -96,11 +107,11 @@ func SSRInstance() *Button {
 
 Asset methods may now return dynamic values — function calls, conditionals, Go DSL helpers, etc. — because they are evaluated by actual Go code execution, not static AST parsing. For example:
 
-- `RenderCSS()` can return typed CSS objects with `.String()` methods (from `tinywasm/css` or similar)
-- `RenderHTML()` and `RenderJS()` remain strings but can be computed
-- `IconSvg()` returns a computed map
+- `RenderCSS()` and `RootCSS()` return typed `*css.Stylesheet` objects. The generated extractor calls `.String()` on the concrete type — no adapter interface exists.
+- `RenderHTML()` and `RenderJS()` remain strings but can be computed.
+- `IconSvg()` returns a computed map.
 
-The compile-and-invoke mechanism removes the limitation of static evaluation. If you were previously returning empty strings due to function calls or dynamic logic, you can now express those values directly in the asset methods.
+The compile-and-invoke mechanism removes the limitation of static evaluation.
 
 ## Single-override rule for `RootCSS()`
 
@@ -161,7 +172,7 @@ If you have live struct instances implementing the SSR interfaces, register them
 am.RegisterComponents(myComponent1, myComponent2)
 ```
 
-Components implementing `RootCSS() string` route to the `open` slot under the same single-override rule (runtime registration is treated as coming from the app, so it replaces the framework theme). See [Component Registration](COMPONENT_REGISTRATION.md) for the full interface list.
+Components implementing `RootCSS() *css.Stylesheet` route to the `open` slot under the same single-override rule (runtime registration is treated as coming from the app, so it replaces the framework theme). See [Component Registration](COMPONENT_REGISTRATION.md) for the full interface list.
 
 ## API summary
 

@@ -5,14 +5,15 @@ import (
 	"testing"
 
 	"github.com/tinywasm/assetmin"
+	"github.com/tinywasm/css"
 )
 
 type rootProvider struct{}
-func (p *rootProvider) RootCSS() interface{ String() string } { return StringValue(":root{--a:1;}") }
+func (p *rootProvider) RootCSS() *css.Stylesheet { return css.New(css.Raw(":root{--a:1;}")) }
 
 type rootAndCssProvider struct{}
-func (p *rootAndCssProvider) RootCSS() interface{ String() string } { return StringValue(":root{--b:2;}") }
-func (p *rootAndCssProvider) RenderCSS() interface{ String() string } { return StringValue(".comp{color:red;}") }
+func (p *rootAndCssProvider) RootCSS() *css.Stylesheet { return css.New(css.Raw(":root{--b:2;}")) }
+func (p *rootAndCssProvider) RenderCSS() *css.Stylesheet { return css.New(css.Raw(".comp{color:red;}")) }
 
 func TestRegister_RootCssProvider_NonEmpty(t *testing.T) {
 	am := assetmin.NewAssetMin(&assetmin.Config{})
@@ -21,31 +22,31 @@ func TestRegister_RootCssProvider_NonEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	css, _ := am.GetMinifiedCSS()
+	cssStr, _ := am.GetMinifiedCSS()
 	expected := "--a:1" // Minifier might strip semicolon
-	if !strings.Contains(string(css), expected) {
-		t.Errorf("Expected RootCSS %q, got %q", expected, string(css))
+	if !strings.Contains(string(cssStr), expected) {
+		t.Errorf("Expected RootCSS %q, got %q", expected, string(cssStr))
 	}
 }
 
 type rootProviderA struct{}
-func (p *rootProviderA) RootCSS() interface{ String() string } { return StringValue(":root{--a:1;}") }
+func (p *rootProviderA) RootCSS() *css.Stylesheet { return css.New(css.Raw(":root{--a:1;}")) }
 
 type rootProviderB struct{}
-func (p *rootProviderB) RootCSS() interface{ String() string } { return StringValue(":root{--b:1;}") }
+func (p *rootProviderB) RootCSS() *css.Stylesheet { return css.New(css.Raw(":root{--b:1;}")) }
 
 func TestRegister_RootCssOverrides(t *testing.T) {
 	am := assetmin.NewAssetMin(&assetmin.Config{})
 
 	am.RegisterComponents(&rootProviderA{})
-	css, _ := am.GetMinifiedCSS()
-	if !strings.Contains(string(css), "--a:1") {
+	cssStr, _ := am.GetMinifiedCSS()
+	if !strings.Contains(string(cssStr), "--a:1") {
 		t.Fatal("A not found")
 	}
 
 	am.RegisterComponents(&rootProviderB{})
-	css, _ = am.GetMinifiedCSS()
-	if !strings.Contains(string(css), "--b:1") {
+	cssStr, _ = am.GetMinifiedCSS()
+	if !strings.Contains(string(cssStr), "--b:1") {
 		t.Error("B not found")
 	}
 }
@@ -55,11 +56,11 @@ func TestRegister_RootAndCssProvider(t *testing.T) {
 	p := &rootAndCssProvider{}
 	am.RegisterComponents(p)
 
-	css, _ := am.GetMinifiedCSS()
-	if !strings.Contains(string(css), "--b:2") {
+	cssStr, _ := am.GetMinifiedCSS()
+	if !strings.Contains(string(cssStr), "--b:2") {
 		t.Error("RootCSS missing")
 	}
-	if !strings.Contains(string(css), ".comp{color:red}") {
+	if !strings.Contains(string(cssStr), ".comp{color:red}") {
 		t.Error("RenderCSS missing")
 	}
 }
