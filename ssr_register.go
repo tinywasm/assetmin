@@ -2,8 +2,8 @@ package assetmin
 
 import "fmt"
 
-type rootCssProvider interface{ RootCSS() string }
-type cssProvider interface{ RenderCSS() string }
+type rootCssProvider interface{ RootCSS() interface{ String() string } }
+type cssProvider interface{ RenderCSS() interface{ String() string } }
 type jsProvider interface{ RenderJS() string }
 type htmlProvider interface{ RenderHTML() string }
 type iconProvider interface{ IconSvg() map[string]string }
@@ -15,14 +15,17 @@ func (c *AssetMin) RegisterComponents(providers ...any) error {
 		var icons map[string]string
 
 		if rp, ok := p.(rootCssProvider); ok {
-			rootCSS := rp.RootCSS()
+			rootCSS := rp.RootCSS().String()
 			if rootCSS != "" {
-				c.UpdateSSRModuleInSlot(fmt.Sprintf("%T", p), rootCSS, "", "", nil, "open")
+				c.mu.Lock()
+				c.fromRoot = &rootCandidate{name: fmt.Sprintf("%T", p), css: rootCSS}
+				c.mu.Unlock()
+				c.resolveAndApplyRootCSS()
 			}
 		}
 
 		if cp, ok := p.(cssProvider); ok {
-			css = cp.RenderCSS()
+			css = cp.RenderCSS().String()
 		}
 		if jp, ok := p.(jsProvider); ok {
 			js = jp.RenderJS()

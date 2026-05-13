@@ -22,6 +22,9 @@ type ssrCache struct {
 	entries map[string]*ssrCacheEntry
 }
 
+// Global cache for SSR extraction results
+var ssrGlobalCache = newSSRCache()
+
 // newSSRCache creates a new cache instance.
 func newSSRCache() *ssrCache {
 	return &ssrCache{
@@ -89,9 +92,4 @@ func (c *ssrCache) set(hashSet string, results map[string]ssrCollectorOutput) {
 		hashSet: hashSet,
 		results: results,
 	}
-}
-
-// invalidate removes cache entries for modules that have changed.
-func (c *ssrCache) invalidate(hashSet string) {
-	delete(c.entries, hashSet)
 }

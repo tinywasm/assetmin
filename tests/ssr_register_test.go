@@ -8,7 +8,7 @@ type mockComponent struct {
 	css string
 }
 
-func (m *mockComponent) RenderCSS() string { return m.css }
+func (m *mockComponent) RenderCSS() interface{ String() string } { return StringValue(m.css) }
 
 func TestSSRRegistration(t *testing.T) {
 	t.Run("UpdateSSRModuleNoDuplicate", func(t *testing.T) {

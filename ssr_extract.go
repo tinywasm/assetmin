@@ -1,12 +1,13 @@
 package assetmin
 
 import (
+	"bytes"
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
+
+	"github.com/tinywasm/fmt"
 )
 
 type SSRAssets struct {
@@ -19,21 +20,20 @@ type SSRAssets struct {
 }
 
 // ExtractSSRAssets uses compile-and-invoke to extract assets from a module.
-// The module must be a proper Go module with go.mod and ssr.go files,
-// and should declare a SSRInstance() function that returns an instance implementing SSR interfaces.
+// The module must be a proper Go module with go.mod and ssr.go files.
 func ExtractSSRAssets(moduleDir string) (*SSRAssets, error) {
 	// Verify module has go.mod and ssr.go
 	if _, err := os.Stat(filepath.Join(moduleDir, "go.mod")); err != nil {
-		return nil, fmt.Errorf("no go.mod found: %w", err)
+		return nil, fmt.Err("no go.mod found", err)
 	}
 	if _, err := os.Stat(filepath.Join(moduleDir, "ssr.go")); err != nil {
-		return nil, fmt.Errorf("ssr.go not found in %s", moduleDir)
+		return nil, fmt.Err("ssr.go not found in", moduleDir)
 	}
 
 	// Determine the project root by looking for the nearest go.mod above moduleDir
 	rootDir, err := findProjectRoot(moduleDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find project root: %w", err)
+		return nil, fmt.Err("failed to find project root", err)
 	}
 
 	// Discover all modules in the project
@@ -43,51 +43,61 @@ func ExtractSSRAssets(moduleDir string) (*SSRAssets, error) {
 		modules = []Module{{Path: filepath.Base(moduleDir), Dir: moduleDir}}
 	}
 
-	// Get the module path for the requested directory
-	var targetModulePath string
+	// Find the module object for the requested directory
+	var targetModule Module
+	found := false
 	for _, m := range modules {
 		if m.Dir == moduleDir {
-			targetModulePath = m.Path
+			targetModule = m
+			found = true
 			break
 		}
 	}
 
-	if targetModulePath == "" {
-		// If module not found, use base name as path
-		targetModulePath = filepath.Base(moduleDir)
+	if !found {
+		targetModule = Module{Path: filepath.Base(moduleDir), Dir: moduleDir}
+	}
+
+	return extractSSRAssetsForModule(targetModule, rootDir, modules, "")
+}
+
+// extractSSRAssetsForModule is the internal implementation that takes a resolved Module.
+// binCachePath is reserved for future optimization (Problem 7).
+func extractSSRAssetsForModule(m Module, rootDir string, allModules []Module, binCachePath string) (*SSRAssets, error) {
+	// Compute hash of all modules to check global cache
+	hashKey, err := computeModuleHashSet(allModules)
+	if err != nil {
+		return nil, fmt.Err("failed to compute module hash", err)
 	}
 
 	// Check cache
-	ssrCacheMu.RLock()
-	cachedResults, hasCached := ssrExtractCache[rootDir]
-	ssrCacheMu.RUnlock()
-
+	ssrExtractMu.Lock()
+	cachedResults, hasCached := ssrGlobalCache.get(hashKey)
 	if !hasCached {
 		// Do compile-and-invoke
-		results, err := invokeSSRExtractorOnce(rootDir, modules)
+		results, err := invokeSSRExtractorOnce(rootDir, allModules)
 		if err != nil {
+			ssrExtractMu.Unlock()
 			return nil, err
 		}
 
 		// Cache the results
-		ssrCacheMu.Lock()
-		ssrExtractCache[rootDir] = results
-		ssrCacheMu.Unlock()
-
+		ssrGlobalCache.set(hashKey, results)
 		cachedResults = results
 	}
+	ssrExtractMu.Unlock()
 
 	// Extract the SSRAssets for the requested module
-	output, ok := cachedResults[targetModulePath]
+	output, ok := cachedResults[m.Path]
 	if !ok {
 		return &SSRAssets{
-			ModuleName: filepath.Base(moduleDir),
+			ModuleName: filepath.Base(m.Dir),
 			Icons:      make(map[string]string),
 		}, nil
 	}
 
 	return &SSRAssets{
-		ModuleName: targetModulePath,
+		ModuleName: m.Path,
 		RootCSS:    output.Root,
 		CSS:        output.Render,
 		JS:         output.JS,
@@ -107,7 +117,7 @@ func findProjectRoot(startDir string) (string, error) {
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("no go.mod found in %s or parent directories", startDir)
+			return "", fmt.Err("no go.mod found in", startDir, "or parent directories")
 		}
 		dir = parent
 	}
@@ -119,11 +129,11 @@ func discoverModules(rootDir string) ([]Module, error) {
 	cmd.Dir = rootDir
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("go list failed: %w", err)
+		return nil, fmt.Err("go list failed", err)
 	}
 
 	var modules []Module
-	dec := json.NewDecoder(strings.NewReader(string(out)))
+	dec := json.NewDecoder(bytes.NewReader(out))
 	for dec.More() {
 		var m Module
 		if err := dec.Decode(&m); err == nil && m.Dir != "" {

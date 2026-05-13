@@ -2,13 +2,14 @@ package assetmin
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
+	"regexp"
 	"sync"
 	"text/template"
+
+	"github.com/tinywasm/fmt"
 )
 
 // ssrCollectorOutput is the structure produced by the generated main.go
@@ -20,30 +21,33 @@ type ssrCollectorOutput struct {
 	Icons  map[string]string `json:"icons"`
 }
 
-type moduleAlias struct {
-	Path  string
-	Alias string
+type ModuleAlias struct {
+	Path        string
+	Alias       string
+	HasInstance bool
+	HasRoot     bool
+	HasRender   bool
+	HasHTML     bool
+	HasJS       bool
+	HasIcons    bool
 }
 
-// Global cache for SSR extraction results (keyed by hash set of all modules)
-var (
-	ssrExtractCache = make(map[string]map[string]ssrCollectorOutput)
-	ssrCacheMu      sync.RWMutex
-)
+// Global mutex for SSR extraction protection
+var ssrExtractMu sync.Mutex
 
 // invokeSSRExtractorOnce generates a combined main.go, runs it once, and returns the aggregated output.
 // Results are cached by the hash of all module Go files.
 func invokeSSRExtractorOnce(rootDir string, modules []Module) (map[string]ssrCollectorOutput, error) {
 	tmpDir, err := os.MkdirTemp("", "assetmin-extract-*")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temp dir: %w", err)
+		return nil, fmt.Err("failed to create temp dir", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
 	// Generate main.go that imports all modules
 	mainFile := filepath.Join(tmpDir, "main.go")
-	if err := generateExtractorMain(mainFile, modules); err != nil {
-		return nil, fmt.Errorf("failed to generate main.go: %w", err)
+	if err := GenerateExtractorMain(mainFile, modules); err != nil {
+		return nil, fmt.Err("failed to generate main.go", err)
 	}
 
 	// Run go run main.go and capture JSON output
@@ -51,27 +55,27 @@ func invokeSSRExtractorOnce(rootDir string, modules []Module) (map[string]ssrCol
 	cmd.Dir = rootDir
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("go run failed: %w", err)
+		return nil, fmt.Err("go run failed", err)
 	}
 
 	// Parse the JSON output
 	var results map[string]ssrCollectorOutput
 	if err := json.Unmarshal(out, &results); err != nil {
-		return nil, fmt.Errorf("failed to parse extractor output: %w", err)
+		return nil, fmt.Err("failed to parse extractor output", err)
 	}
 
 	return results, nil
 }
 
-// generateExtractorMain writes a main.go file that imports all modules and collects their assets.
-func generateExtractorMain(outputFile string, modules []Module) error {
+// GenerateExtractorMain writes a main.go file that imports all modules and collects their assets.
+func GenerateExtractorMain(outputFile string, modules []Module) error {
 	tmpl := template.Must(template.New("extractor").Parse(`package main
 
 import (
 	"encoding/json"
 	"os"
 	{{range .Modules}}
-	{{.Alias}} "{{.Path}}"
+	{{if .Path}}{{.Alias}} "{{.Path}}"{{end}}
 	{{end}}
 )
 
@@ -83,40 +87,40 @@ type ssr struct {
 	Icons  map[string]string ` + "`json:\"icons\"`" + `
 }
 
-func collect(inst interface {
-	RenderCSS() interface{ String() string }
-	RenderHTML() string
-	RenderJS() string
-	IconSvg() map[string]string
-}) ssr {
-	out := ssr{
-		Render: inst.RenderCSS().String(),
-		HTML:   inst.RenderHTML(),
-		JS:     inst.RenderJS(),
-		Icons:  inst.IconSvg(),
-	}
-
-	// Check if instance also provides RootCSS (optional interface)
-	if rootProvider, ok := inst.(interface{ RootCSS() interface{ String() string } }); ok {
-		out.Root = rootProvider.RootCSS().String()
-	}
-
-	return out
-}
-
 func main() {
-	all := map[string]ssr{
-		{{range .Modules}}"{{.Path}}": collect({{.Alias}}.SSRInstance()),
+	all := make(map[string]ssr)
+	{{range .Modules}}
+	{{if .Path}}
+	{
+		var s ssr
+		{{if .HasInstance}}
+		{
+			inst := {{.Alias}}.SSRInstance()
+			{{if .HasRoot}}s.Root = inst.RootCSS().String(){{end}}
+			{{if .HasRender}}s.Render = inst.RenderCSS().String(){{end}}
+			{{if .HasHTML}}s.HTML = inst.RenderHTML(){{end}}
+			{{if .HasJS}}s.JS = inst.RenderJS(){{end}}
+			{{if .HasIcons}}s.Icons = inst.IconSvg(){{end}}
+		}
+		{{else}}
+		{{if .HasRoot}}s.Root = {{.Alias}}.RootCSS().String(){{end}}
+		{{if .HasRender}}s.Render = {{.Alias}}.RenderCSS().String(){{end}}
+		{{if .HasHTML}}s.HTML = {{.Alias}}.RenderHTML(){{end}}
+		{{if .HasJS}}s.JS = {{.Alias}}.RenderJS(){{end}}
+		{{if .HasIcons}}s.Icons = {{.Alias}}.IconSvg(){{end}}
 		{{end}}
+		all["{{.Path}}"] = s
 	}
+	{{end}}
+	{{end}}
 	json.NewEncoder(os.Stdout).Encode(all)
 }
 `))
 
 	data := struct {
-		Modules []moduleAlias
+		Modules []ModuleAlias
 	}{
-		Modules: modulesToAliases(modules),
+		Modules: ModulesToAliases(modules),
 	}
 
 	f, err := os.Create(outputFile)
@@ -128,17 +132,45 @@ func main() {
 	return tmpl.Execute(f, data)
 }
 
-// modulesToAliases converts module information to alias mappings.
-func modulesToAliases(modules []Module) []moduleAlias {
-	var aliases []moduleAlias
+var (
+	reSSRInstance = regexp.MustCompile(`(?m)^func SSRInstance\(`)
+	reRootCSS     = regexp.MustCompile(`(?m)^func.*RootCSS\(\)`)
+	reRenderCSS   = regexp.MustCompile(`(?m)^func.*RenderCSS\(\)`)
+	reRenderHTML  = regexp.MustCompile(`(?m)^func.*RenderHTML\(\)`)
+	reRenderJS    = regexp.MustCompile(`(?m)^func.*RenderJS\(\)`)
+	reIconSvg     = regexp.MustCompile(`(?m)^func.*IconSvg\(\)`)
+)
+
+// ModulesToAliases converts module information to alias mappings and detects features via regex.
+func ModulesToAliases(modules []Module) []ModuleAlias {
+	var aliases []ModuleAlias
 	for _, m := range modules {
-		// Use the last component of the path as the alias, with underscores
-		parts := strings.Split(m.Path, "/")
-		alias := strings.ReplaceAll(parts[len(parts)-1], "-", "_")
-		aliases = append(aliases, moduleAlias{
+		parts := fmt.Convert(m.Path).Split("/")
+		alias := fmt.Convert(parts[len(parts)-1]).Replace("-", "_").String()
+
+		// If alias starts with a digit or is empty, prepend an underscore to make it a valid Go identifier
+		if len(alias) == 0 || (alias[0] >= '0' && alias[0] <= '9') {
+			alias = "_" + alias
+		}
+
+		ma := ModuleAlias{
 			Path:  m.Path,
 			Alias: alias,
-		})
+		}
+
+		// Read ssr.go to detect features
+		if m.Dir != "" {
+			if content, err := os.ReadFile(filepath.Join(m.Dir, "ssr.go")); err == nil {
+				ma.HasInstance = reSSRInstance.Match(content)
+				ma.HasRoot = reRootCSS.Match(content)
+				ma.HasRender = reRenderCSS.Match(content)
+				ma.HasHTML = reRenderHTML.Match(content)
+				ma.HasJS = reRenderJS.Match(content)
+				ma.HasIcons = reIconSvg.Match(content)
+			}
+		}
+
+		aliases = append(aliases, ma)
 	}
 	return aliases
 }

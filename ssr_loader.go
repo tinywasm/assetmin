@@ -1,12 +1,14 @@
 package assetmin
 
 import (
+	"bytes"
 	"encoding/json"
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
+
+	"github.com/tinywasm/fmt"
 )
 
 // cssModulePath is the module path that provides the default `:root` theme
@@ -52,7 +54,7 @@ func (c *AssetMin) loadSSRModulesLocked() error {
 			}
 
 			var mods []Module
-			dec := json.NewDecoder(strings.NewReader(string(out)))
+			dec := json.NewDecoder(bytes.NewReader(out))
 			for dec.More() {
 				var m Module
 				if err := dec.Decode(&m); err != nil {
@@ -95,7 +97,7 @@ func (c *AssetMin) loadSSRModulesLocked() error {
 		cmd.Dir = c.RootDir
 		out, err := cmd.Output()
 		if err == nil {
-			dec := json.NewDecoder(strings.NewReader(string(out)))
+			dec := json.NewDecoder(bytes.NewReader(out))
 			for dec.More() {
 				var m Module
 				if err := dec.Decode(&m); err == nil {
@@ -119,12 +121,12 @@ func (c *AssetMin) loadSSRModulesLocked() error {
 		}
 
 		// Always load exceptions
-		isFramework := strings.Contains(m.Path, cssModulePath)
+		isFramework := fmt.Contains(m.Path, cssModulePath)
 		isRoot := isRootDir(m.Dir, c.RootDir)
 		alwaysLoad := isFramework || isRoot
 
 		if alwaysLoad {
-			if assets, err := ExtractSSRAssets(m.Dir); err == nil {
+			if assets, err := extractSSRAssetsForModule(m, c.RootDir, modules, ""); err == nil {
 				c.routeAssets(assets, isRoot, isFramework)
 			}
 			// Even if root/framework has no ssr.go, we continue to check subpackages if any
@@ -140,8 +142,12 @@ func (c *AssetMin) loadSSRModulesLocked() error {
 			}
 
 			subDir := filepath.Join(m.Dir, sub)
-			if assets, err := ExtractSSRAssets(subDir); err == nil {
-				subIsFramework := strings.Contains(subDir, cssModulePath)
+			subM := Module{Path: m.Path, Dir: subDir} // Best effort for subpackages
+			if sub != "" {
+				subM.Path = m.Path + "/" + sub
+			}
+			if assets, err := extractSSRAssetsForModule(subM, c.RootDir, modules, ""); err == nil {
+				subIsFramework := fmt.Contains(subDir, cssModulePath)
 				subIsRoot := isRootDir(subDir, c.RootDir)
 				c.routeAssets(assets, subIsRoot, subIsFramework)
 			}
@@ -214,7 +220,7 @@ func (c *AssetMin) ReloadSSRModule(moduleDir string) error {
 		return err
 	}
 
-	isFramework := strings.Contains(moduleDir, cssModulePath)
+	isFramework := fmt.Contains(moduleDir, cssModulePath)
 	isRoot := isRootDir(moduleDir, c.RootDir)
 
 	c.routeAssets(assets, isRoot, isFramework)
