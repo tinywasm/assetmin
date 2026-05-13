@@ -8,11 +8,11 @@ import (
 )
 
 type rootProvider struct{}
-func (p *rootProvider) RootCSS() string { return ":root{--a:1;}" }
+func (p *rootProvider) RootCSS() interface{ String() string } { return StringValue(":root{--a:1;}") }
 
 type rootAndCssProvider struct{}
-func (p *rootAndCssProvider) RootCSS() string { return ":root{--b:2;}" }
-func (p *rootAndCssProvider) RenderCSS() string { return ".comp{color:red;}" }
+func (p *rootAndCssProvider) RootCSS() interface{ String() string } { return StringValue(":root{--b:2;}") }
+func (p *rootAndCssProvider) RenderCSS() interface{ String() string } { return StringValue(".comp{color:red;}") }
 
 func TestRegister_RootCssProvider_NonEmpty(t *testing.T) {
 	am := assetmin.NewAssetMin(&assetmin.Config{})
@@ -29,10 +29,10 @@ func TestRegister_RootCssProvider_NonEmpty(t *testing.T) {
 }
 
 type rootProviderA struct{}
-func (p *rootProviderA) RootCSS() string { return ":root{--a:1;}" }
+func (p *rootProviderA) RootCSS() interface{ String() string } { return StringValue(":root{--a:1;}") }
 
 type rootProviderB struct{}
-func (p *rootProviderB) RootCSS() string { return ":root{--b:1;}" }
+func (p *rootProviderB) RootCSS() interface{ String() string } { return StringValue(":root{--b:1;}") }
 
 func TestRegister_RootCssOverrides(t *testing.T) {
 	am := assetmin.NewAssetMin(&assetmin.Config{})

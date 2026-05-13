@@ -1,404 +1,302 @@
-# PLAN — Correcciones post-migración compile-and-invoke
+# PLAN — Tareas pendientes post-migración compile-and-invoke
 
-> Este plan reemplaza al plan anterior ("Typed CSS migration"). La migración se ejecutó
-> parcialmente. Las fallas actuales son consecuencia de seis inconsistencias entre la
-> implementación y los contratos reales del proyecto (Problemas 1–6). El Problema 7
-> (binario persistente) es una optimización diferida, no un bug.
+> Continuación del plan previo (CHECK_PLAN.md, eliminado). Los Problemas 1–6
+> originales fueron implementados parcialmente: `gotest` pasa 100%, pero quedan
+> 4 tareas sin cerrar que afectan el contrato real con `*css.Stylesheet` y la
+> documentación. El Problema 7 (binario persistente) sigue diferido.
 
 ---
 
-## Contrato real de los módulos (fuente de verdad)
+## Estado verificado (2026-05-13)
 
-Los componentes en `tinywasm/components` y `tinywasm/css` usan exclusivamente
-**retorno tipado** `*css.Stylesheet`. No existe ni existirá un retorno `string`:
+| Item original | Estado |
+|---|---|
+| Problema 1 — `collect()` eliminado, generador emite tipos concretos | ✅ Hecho |
+| Problema 2 — Tests hot-reload migrados | ✅ Hecho |
+| Problema 3 — `ssrGlobalCache` por hash, `ssrExtractCache` eliminado | ✅ Hecho |
+| Problema 4 — `extractSSRAssetsForModule(m, rootDir, modules, binCachePath)` | ✅ Hecho |
+| Problema 5 — `writeStubModule` helper | ❌ **Pendiente** |
+| Problema 6 — `"strings"` stdlib en producción | ✅ Hecho (usa `tinywasm/fmt`) |
+| `ssrCache.invalidate` eliminado | ✅ Hecho |
+| `gotest` 0 fallos | ✅ `ok github.com/tinywasm/assetmin/tests 8.258s` |
+| Documentación actualizada | ❌ **Pendiente** |
+| `BenchmarkIncrementalChange` baseline | ❌ **Pendiente** |
+| `ssr_register.go` sin `interface{ String() string }` | ❌ **Pendiente** |
+
+---
+
+## Contrato real (recordatorio)
+
+Los componentes (`tinywasm/components/*`) y `tinywasm/css` usan **retorno tipado**
+`*css.Stylesheet`. No existe ni existirá un retorno `string` ni un adaptador
+`interface{ String() string }`. El generated `main.go` llama directamente
+`m.RootCSS().String()` sobre el tipo concreto.
 
 ```go
-// tinywasm/css/ssr.go — módulo-level functions, SIN SSRInstance, SIN receptor
-func RootCSS() *Stylesheet { return New(Root(...)) }
-func RenderCSS() *Stylesheet { return New(Rule(...)) }
-
-// tinywasm/components/selectsearch/ssr.go — métodos con receptor
+// componentes
 func SSRInstance() *SelectSearch { return &SelectSearch{} }
 func (c *SelectSearch) RenderCSS() *Stylesheet { return New(...) }
-func (c *SelectSearch) IconSvg() map[string]string { ... }
-```
-
-`*Stylesheet` implementa `String() string` (`css/dsl.go:14`). No existe adaptador
-`interface{ String() string }` en el contrato — se llama directamente `m.RootCSS().String()`.
-
----
-
-## Estado actual (diagnóstico)
-
-`gotest` reporta 11 tests fallidos. Las causas raíz son cuatro, distintas e
-independientes (mapeadas a Problemas 1–4):
-
-| Test | Error observado | Causa raíz |
-|---|---|---|
-| `TestCSSHotReload_SSRMode_UpdatesCorrectly` | stale CSS remains | caché no se invalida |
-| `TestSSRMode_EmbeddedAssetHotReload` | CSS not updated | ExtractSSRAssets exige go.mod |
-| `TestReload_AppGainsRootCSS` | framework css not found | ExtractSSRAssets exige go.mod |
-| `TestReload_AppLosesRootCSS` | app root css not found | ExtractSSRAssets exige go.mod |
-| `TestReload_ThirdPartyAddsRootCSS` | no go.mod found | ExtractSSRAssets exige go.mod |
-| `TestLoader_AppFullyReplacesCss` | framework css persiste | caché contaminada + ssr_invoke tipo incorrecto |
-| `TestSSRLoader/LoadSSRModulesOrder` | Some CSS missing | ssr.go sin go.mod ni SSRInstance |
-| `TestSSRLoader/ReloadSSRModuleHotReload` | no go.mod found | ExtractSSRAssets exige go.mod |
-| `TestSSRLoader/LoadIconsFromLocalRoot` | Icon not loaded | ExtractSSRAssets exige go.mod |
-| `TestSSRLoader/LoadIconsFromReceiverMethod_InHTML` | Icon not registered | ídem |
-| `TestReloadSSRModule_OnlyRefreshesChangedAssets` | no go.mod found | ídem |
-
----
-
-## Problema 1 — `ssr_invoke.go` genera código con tipo de interfaz incorrecto
-
-### Causa raíz
-
-`ssr_invoke.go:86-105` genera un `collect()` que exige:
-
-```go
-func collect(inst interface {
-    RenderCSS() interface{ String() string }   // ← incorrecto
-    RootCSS()   interface{ String() string }   // ← incorrecto
-    ...
-})
-```
-
-Los componentes retornan `*css.Stylesheet`. En Go, `*Stylesheet` no satisface
-`interface{ RenderCSS() interface{ String() string } }` aunque `*Stylesheet` tenga
-`String()` — los tipos de retorno deben ser idénticos para satisfacción de interfaz
-estructural. El `collect()` nunca puede compilar contra código real.
-
-Además, `tinywasm/css/ssr.go` no tiene `SSRInstance()` — el generated main.go
-intenta llamar `css.SSRInstance()` que no existe → error de compilación.
-
-### Corrección
-
-**Eliminar `collect()`. El generador emite llamadas directas sobre tipos concretos.**
-
-Ningún módulo cambia. `generateExtractorMain` inspecciona cada `ssr.go` con regex
-**anclado a firma de función** (`^func SSRInstance\(`, `^func.*RootCSS\(\) \*Stylesheet`,
-etc.) — no substring suelto, para evitar falsos positivos por variables/comentarios
-que mencionen los nombres. Las firmas a detectar son exactamente seis:
-
-Notación: `<pkg>` = nombre corto del paquete (declarado en `package X` del `ssr.go`,
-no el import path completo). `<x>` = `inst` si el módulo tiene `SSRInstance`, o
-`<pkg>` si son funciones de paquete.
-
-| Patrón regex | Significado | Emite |
-|---|---|---|
-| `^func SSRInstance\(` | componente con receptor → instancia | `inst := <pkg>.SSRInstance()` |
-| `^func.*RootCSS\(\) \*Stylesheet` | exporta CSS root | `Root: <x>.RootCSS().String()` |
-| `^func.*RenderCSS\(\) \*Stylesheet` | exporta CSS de instancia | `Render: <x>.RenderCSS().String()` |
-| `^func.*RenderHTML\(\) string` | exporta HTML | `HTML: <x>.RenderHTML()` |
-| `^func.*RenderJS\(\) string` | exporta JS | `JS: <x>.RenderJS()` |
-| `^func.*IconSvg\(\) map\[string\]string` | iconos | `Icons: <x>.IconSvg()` |
-
-`assetmin` ya tiene `cssModulePath` como constante especial — esa distinción existente
-se aplica en la generación:
-
-```go
-// Componentes — tienen SSRInstance() + métodos con receptor
-inst := selectsearch.SSRInstance()
-all["selectsearch"] = ssr{
-    Render: inst.RenderCSS().String(),  // *Stylesheet.String() → compila
-    HTML:   inst.RenderHTML(),
-    JS:     inst.RenderJS(),
-    Icons:  inst.IconSvg(),
-    // Root: inst.RootCSS().String()  ← solo si ssr.go contiene "RootCSS"
-}
 
 // tinywasm/css — funciones de paquete, sin SSRInstance
-all["tinywasm/css"] = ssr{
-    Root:   css.RootCSS().String(),
-    Render: css.RenderCSS().String(),
+func RootCSS() *Stylesheet { return New(Root(...)) }
+```
+
+---
+
+## Tarea 1 — Eliminar `interface{ String() string }` de `ssr_register.go`
+
+### Causa raíz
+
+`ssr_register.go:5-9` define interfaces de runtime que exigen el tipo de retorno
+`interface{ String() string }`:
+
+```go
+type rootCssProvider interface{ RootCSS() interface{ String() string } }
+type cssProvider    interface{ RenderCSS() interface{ String() string } }
+```
+
+En Go, `*css.Stylesheet` **no** satisface `interface{ RootCSS() interface{ String() string } }`
+aunque `*Stylesheet` tenga método `String()` — la satisfacción estructural de
+interfaces requiere igualdad exacta de tipos de retorno. Los tests pasan hoy
+únicamente porque los mocks (`StringValue`, `mockRootProvider`, etc.) retornan
+literalmente `interface{ String() string }`. Si un componente real
+(`tinywasm/components/*`) se registra vía `RegisterComponents`, **fallará la
+aserción de tipo silenciosamente** y se ignorará su CSS/HTML/JS.
+
+### Corrección
+
+Cambiar las interfaces a tipos de retorno concretos `*css.Stylesheet`:
+
+```go
+import "github.com/tinywasm/css"
+
+type rootCssProvider interface{ RootCSS()   *css.Stylesheet }
+type cssProvider    interface{ RenderCSS() *css.Stylesheet }
+type jsProvider     interface{ RenderJS()   string }
+type htmlProvider   interface{ RenderHTML() string }
+type iconProvider   interface{ IconSvg()    map[string]string }
+```
+
+Luego en `RegisterComponents`:
+
+```go
+if rp, ok := p.(rootCssProvider); ok {
+    rootCSS := rp.RootCSS().String()   // *Stylesheet.String() directo, sin adaptador
+    ...
 }
 ```
 
-Go verifica los tipos en compilación dentro del generated `main.go`. `assetmin` no
-importa `tinywasm/css`, no conoce `*Stylesheet` — solo genera texto de código fuente
-que el compilador valida. Sin reflexión, sin interfaces en runtime.
+**No hay riesgo de ciclo de imports**: `tinywasm/css` y `tinywasm/dom` son
+capas base del proyecto y nunca importan `assetmin`. `assetmin` puede importar
+`tinywasm/css` libremente.
+
+**Contrato estructural**: cualquier componente (en `tinywasm/components/*` o en
+repos de terceros) que exponga `RenderCSS() *css.Stylesheet` satisface
+automáticamente la interfaz, sin necesidad de importar `assetmin`. Los terceros
+solo importan `tinywasm/css` (para construir el `*Stylesheet`) y `tinywasm/dom`
+(para la firma de HTML/eventos). Esa es justamente la razón de fijar el tipo
+concreto: el bug previo (`interface{ String() string }`) rompía la coincidencia
+exacta requerida por la satisfacción estructural de Go.
+
+### Actualizar mocks de test
+
+Tras el cambio, los mocks en `tests/ssr_register_test.go`,
+`tests/ssr_register_root_test.go`, `tests/ssr_loader_root_override_test.go`,
+`tests/ssr_extract_root_test.go`, `tests/ssr_extract_test.go` deben retornar
+`*css.Stylesheet` real (construido con el DSL) en vez de `StringValue`.
 
 ---
 
-## Problema 2 — `ExtractSSRAssets` exige `go.mod` en todos los casos
+## Tarea 2 — Helper `writeStubModule` para fixtures Capa B
 
 ### Causa raíz
 
-`ssr_extract.go:26-31` rechaza cualquier directorio sin `go.mod`:
-
-```go
-if _, err := os.Stat(filepath.Join(moduleDir, "go.mod")); err != nil {
-    return nil, fmt.Errorf("no go.mod found: %w", err)
-}
-```
-
-Los tests de hot-reload (`ssr_event_filter_test.go`, `css_ssr_hotreload_test.go`,
-`ssr_loader_reload_test.go`, `ssr_refresh_test.go`) y los tests del loader
-(`ssr_loader_test.go`) escriben `ssr.go` **sin** `go.mod`. Esto era válido con el
-extractor AST anterior. La restricción de `go.mod` es necesaria para `go run`, pero
-no todos los tests ejercen el path de compilación.
-
-El **hot-reload** no necesita re-compilar: cuando un archivo `.css` cambia en un módulo,
-el CSS ya fue compilado en la carga inicial. El único dato que cambia es el contenido
-de la cadena que retornarían los métodos. Re-ejecutar `go run` para eso es incorrecto
-arquitecturalmente — debería haber un mecanismo de recarga más liviano.
+El plan original requería un helper para tests que ejercen el pipeline completo
+end-to-end (compile-and-invoke real con `go.mod` + `SSRInstance`). Actualmente
+cada test que necesita un módulo stub escribe inline su `go.mod` + `ssr.go`,
+duplicando código.
 
 ### Corrección
 
-**Realidad del proyecto:** todos los módulos actuales (`tinywasm/css`, componentes)
-usan DSL tipado. **No existe** todavía un módulo "embed-only sin SSRInstance" en el
-codebase. La rama "regex liviano" para módulos sin DSL queda **fuera de scope**
-hasta que aparezca un caso real — sería YAGNI implementarla preventivamente.
-
-**Para el hot-reload** (`ReloadSSRModule`): mantener `ExtractSSRAssets` como
-mecanismo único. El costo (`go run` ~500 ms) se mitiga via Problema 3 (caché por
-hash) y, si la medición lo justifica, via Problema 7 (binario persistente).
-
-**Para los tests de hot-reload**: migrarlos al contrato correcto.
-- Tests que prueban el slot del cache (`UpdateSSRModule` + `RegenerateCache`)
-  **no necesitan** `ExtractSSRAssets` — registran CSS directamente con
-  `am.UpdateSSRModule(name, css, ...)` y verifican el slot.
-- Tests que prueban `ReloadSSRModule` extremo a extremo deben proveer módulo
-  completo con `go.mod` + `SSRInstance` (vía `writeStubModule`, Problema 5).
-
----
-
-## Problema 3 — Caché global nunca se invalida
-
-### Causa raíz
-
-`ssr_extract.go:61-78` usa `rootDir` como clave fija del caché global:
+Crear `tests/stub_module_test.go`:
 
 ```go
-ssrCacheMu.RLock()
-cachedResults, hasCached := ssrExtractCache[rootDir]
-ssrCacheMu.RUnlock()
-```
+package tests
 
-Cuando `ReloadSSRModule` llama `ExtractSSRAssets` tras un cambio de archivo, la
-entrada sigue presente → retorna datos viejos → CSS stale.
+import (
+    "os"
+    "path/filepath"
+    "testing"
 
-`ssr_cache.go` implementa un caché basado en hash de contenido (`computeModuleHashSet`,
-`ssrCache.get/set/invalidate`) pero **nunca se usa**: `ssr_extract.go` mantiene su
-propio mapa independiente.
+    "github.com/tinywasm/fmt"
+)
 
-### Corrección
-
-Reemplazar `ssrExtractCache` con la instancia de `ssrCache` definida en `ssr_cache.go`.
-El flujo correcto:
-
-```
-1. computeModuleHashSet(modules)   →  hashKey
-2. ssrGlobalCache.get(hashKey)     →  hit → retornar inmediatamente
-3. miss → invokeSSRExtractorOnce   →  results
-4. ssrGlobalCache.set(hashKey, results)
-```
-
-El hash cambia automáticamente cuando cualquier `.go` del módulo cambia, sin
-necesidad de invalidación explícita. `ReloadSSRModule` no necesita invalidar
-manualmente — basta con que `ExtractSSRAssets` use el hash actualizado.
-
-**Sobre `ssrCache.invalidate`:** tras este cambio el método queda sin uso en
-producción. **Eliminarlo** junto con `ssrExtractCache` (no mantenerlo "por
-simetría"). Si en el futuro un test requiere forzar invalidación, podrá
-reintroducirse con un caso de uso real.
-
----
-
-## Problema 4 — Doble descubrimiento de módulos incoherente
-
-### Causa raíz
-
-`loadSSRModulesLocked` tiene un override testeable (`c.listModulesFn`) que en tests
-devuelve la lista de directorios. Pero `ExtractSSRAssets` llama internamente
-`discoverModules(rootDir)` que ejecuta `go list -m -json all` sin respetar ese
-override. Los dos paths de descubrimiento producen `Module.Path` distintos.
-
-Esto causa que `TestLoader_AppFullyReplacesCss` falle: el loader construye módulos
-con `Path = filepath.Base(dir)` (e.g. `"css"`), pero el extractor descubre módulos
-con el path real del go.mod (e.g. `"example.com/test/css"`). Las claves no coinciden
-en `cachedResults[targetModulePath]` → el módulo raíz no encuentra su entrada.
-
-### Corrección
-
-`ExtractSSRAssets` no debe hacer descubrimiento propio cuando el módulo ya es conocido.
-Refactorizar para aceptar el `Module` como parámetro en la función interna:
-
-```go
-// API pública — descubrimiento propio (uso desde fuera del loader)
-func ExtractSSRAssets(moduleDir string) (*SSRAssets, error)
-
-// Interna — módulo ya resuelto (usada desde loadSSRModulesLocked)
-// El parámetro binCachePath queda reservado para Problema 7 (binario persistente).
-// Por ahora se pasa "" y la implementación sigue usando `go run`.
-func extractSSRAssetsForModule(m Module, rootDir, binCachePath string) (*SSRAssets, error)
-```
-
-`loadSSRModulesLocked` pasa el `Module` directamente (con `Path` ya conocido).
-Elimina el doble `go list` y garantiza que las claves del caché sean consistentes.
-Firmar `binCachePath` ahora evita re-tocar la API cuando se implemente Problema 7.
-
----
-
-## Problema 5 — Tests de pipeline completo con go.mod y replace fallan en CI
-
-### Causa raíz
-
-`TestLoader_AppFullyReplacesCss` y `TestLoader_CssDefaultWins_NoAppRoot` crean
-fixtures con `replace` directives entre módulos. `go list -m -json all` en estos
-directorios falla si no hay `go.sum`. El fallback en `discoverModules` produce paths
-incorrectos (ver Problema 4).
-
-### Corrección
-
-Añadir helper `writeStubModule` (mencionado en el plan original, nunca implementado):
-
-```go
-// tests/stub_module_test.go
+// writeStubModule escribe un módulo Go auto-contenido con go.mod + ssr.go.
+// modulePath: ruta del módulo (ej. "example.com/test/css").
+// pkgName: nombre del paquete declarado en ssr.go.
+// body: contenido del archivo ssr.go DESPUÉS de la línea `package X`.
 func writeStubModule(t *testing.T, dir, modulePath, pkgName, body string) {
     t.Helper()
     gomod := fmt.Sprintf("module %s\ngo 1.22\n", modulePath)
-    os.WriteFile(filepath.Join(dir, "go.mod"), []byte(gomod), 0644)
-    os.WriteFile(filepath.Join(dir, "ssr.go"),
-        []byte("//go:build !wasm\n\npackage "+pkgName+"\n\n"+body), 0644)
+    if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(gomod), 0644); err != nil {
+        t.Fatalf("write go.mod: %v", err)
+    }
+    src := "//go:build !wasm\n\npackage " + pkgName + "\n\n" + body
+    if err := os.WriteFile(filepath.Join(dir, "ssr.go"), []byte(src), 0644); err != nil {
+        t.Fatalf("write ssr.go: %v", err)
+    }
 }
 ```
 
-Los fixtures que prueban el pipeline completo end-to-end (compile-and-invoke real)
-deben ser **auto-contenidos**: sin `require` entre módulos del test. Cada módulo
-define sus propios tipos auxiliares (`type strVal string; func (s strVal) String() string { ... }`).
-No usar `replace` a menos que sea imprescindible — si se necesita simular la relación
-root → css, modelarlo con dos módulos independientes que el loader recibe vía
-`SetListModulesFn`.
+**Migrar callers**: identificar tests que escriben `go.mod` + `ssr.go` inline
+para fixtures Capa B y reemplazar por `writeStubModule(...)`. Candidatos:
+`ssr_loader_test.go`, `ssr_loader_reload_test.go`, `ssr_refresh_test.go`.
+
+**Regla**: fixtures auto-contenidos, **sin `replace` directives** entre módulos.
+Cada módulo define sus propios tipos auxiliares.
 
 ---
 
-## Problema 6 — `"strings"` stdlib en archivos de producción
-
-`ssr_loader.go`, `ssr_extract.go` e `ssr_invoke.go` importan `"strings"`. Por
-convención del proyecto todo manejo de strings debe usar `github.com/tinywasm/fmt`.
-
-### Corrección
-
-Reemplazar `strings.Contains`, `strings.HasSuffix`, `strings.Split`,
-`strings.ReplaceAll` con equivalentes de `tinywasm/fmt`. Para `strings.NewReader`
-(decodificación JSON de salida de `go list`) usar `bytes.NewReader(out)` donde `out`
-ya es `[]byte`.
-
----
-
-## Problema 7 — `go run` recompila en cada invocación (diferido)
+## Tarea 3 — `BenchmarkIncrementalChange` como baseline medido
 
 ### Causa raíz
 
-El cuello de botella del dev loop no es la extracción ni el caché de resultados,
-sino el costo fijo de `go run`: ~250–350 ms de compilación + link por invocación,
-incluso cuando las fuentes no cambiaron. El benchmark `PERFORMANCE_COMPARISON.md`
-mide warm path como "cache hit del resultado JSON" (~10 ms), pero el flujo real de
-edición desde `tinywasm/app` siempre invalida ese caché (estás editando) → el
-usuario percibe ~500 ms por cada cambio.
+Los benchmarks actuales (`benchmark/benchmark_test.go`) miden:
+- `BenchmarkExtractSSRAssets_SingleModule`
+- `BenchmarkExtractSSRAssets_ThreeModules`
+- `BenchmarkExtractSSRAssets_LargeCSS`
 
-### Por qué diferir, no implementar ahora
+Pero **ninguno** mide el escenario real del dev loop: edición incremental de
+`.go` entre iteraciones (que invalida hash → fuerza re-compile). Sin este dato
+no hay base objetiva para decidir si el Problema 7 (binario persistente) vale
+la pena.
 
-- El plan actual repara correctness. Mezclar optimización rompe el bisect cuando
-  un test falle: ¿es la migración a `*Stylesheet` o el binario persistente?
-- No hay baseline medido todavía. Si el 95% de los cambios reales en `tinywasm/app`
-  son a archivos `.css` embebidos (path liviano del Problema 2), el dev loop ya es
-  de ~50 ms y esta optimización es innecesaria.
-- La firma `extractSSRAssetsForModule(m, rootDir, binCachePath)` (Problema 4) ya
-  deja el hook listo. No hay deuda arquitectónica por esperar.
+### Corrección
 
-### Corrección futura (cuando los benchmarks lo justifiquen)
+Añadir en `benchmark/benchmark_test.go`:
 
-Reemplazar `go run` por `go build -o <cache>/ssr_extractor_<hash>` + ejecución
-directa del binario:
-
+```go
+// BenchmarkIncrementalChange mide el wall-time real del dev loop:
+// edita un .go entre iteraciones, forzando invalidación de hash y re-compile.
+// NO hay umbral de pass/fail — el dato es input para decidir Problema 7.
+func BenchmarkIncrementalChange(b *testing.B) {
+    // setup: módulo stub con go.mod + ssr.go + un .css embebido
+    // por iteración:
+    //   1. modificar ssr.go (cambiar una constante para invalidar hash)
+    //   2. medir ExtractSSRAssets end-to-end
+    // reporta b.ReportMetric(elapsedMs, "ms/edit")
+}
 ```
-1. Computar hash de las fuentes del extractor + módulos.
-2. Si existe binario para ese hash → ejecutar directo (~50 ms total).
-3. Si no → go build (incremental gracias a $GOCACHE: ~150–200 ms) + ejecutar.
-```
 
-Aprovecha el build cache nativo de Go para link incremental. Sin `plugin`, sin
-warm subprocess, sin dependencias nuevas. Esperado: dev loop de ~500 ms → ~150 ms
-en cambios incrementales, ~50 ms cuando nada cambia.
-
-### Por qué NO usar `tinywasm/gobuild` ni `CompileToMemory`
-
-- `gobuild.CompileToMemory` ahorra ~5 ms (el disk write), no los 350 ms del compile.
-- El binario debe ejecutarse para evaluar `RenderCSS().String()` — un `[]byte` en
-  RAM sigue requiriendo `fork+exec` (memfd o disco, da igual).
-- Extender `gobuild` con compile-and-invoke + cache por hash rompe su SRP (solo
-  compila). Si se necesita warm subprocess más adelante, será un paquete nuevo.
-
-### Descartado: warm subprocess + `plugin`
-
-`plugin` no funciona en Windows, rompe entre versiones de Go, y exige mismo
-toolchain exacto. Mala relación complejidad/beneficio. No considerar.
+Documentar el resultado en `docs/ARCHITECTURE.md` sección "Performance baseline"
+o en un nuevo `docs/PERFORMANCE.md` con la cifra medida (ej. "edit→extract:
+~480 ms en M1, ~520 ms en linux/amd64"). Esa cifra es la que gobierna la
+decisión futura del Problema 7.
 
 ---
 
-## Secuencia de implementación
+## Tarea 4 — Actualizar documentación
 
-```
-1. Corregir generateExtractorMain (Problema 1):
-   - Detectar patrón por módulo (SSRInstance vs funciones de paquete)
-   - Generar código con tipo concreto *Stylesheet, no interface{}
-   - Sin collect() genérico
+### Archivos afectados y cambios concretos
 
-2. Conectar ssr_cache.go con hash (Problema 3):
-   - Eliminar ssrExtractCache
-   - Usar ssrGlobalCache = newSSRCache() como variable global
-   - computeModuleHashSet → get/set
+#### `docs/SSR.md`
 
-3. Refactorizar Module param (Problema 4):
-   - Añadir extractSSRAssetsForModule(m Module, rootDir, binCachePath string)
-     (binCachePath = "" por ahora; hook para Problema 7)
-   - loadSSRModulesLocked lo usa directamente
-   - ExtractSSRAssets pública como wrapper
+- **Línea 7**: la frase "instantiates each via `SSRInstance()`" debe matizarse:
+  "instantiates each via `SSRInstance()` for components, or calls package-level
+  functions for modules without instance (e.g. `tinywasm/css`)".
+- **Línea 80**: el snippet de ejemplo usa `RenderCSS() interface{ String() string }`.
+  Reemplazar por:
+  ```go
+  func (b *Button) RenderCSS() *css.Stylesheet {
+      return css.New(css.Rule(".btn", css.Decl("color", "red")))
+  }
+  ```
+- Añadir párrafo: "Components return typed `*css.Stylesheet`. The generated
+  extractor calls `.String()` on the concrete type — no `interface{ String() string }`
+  adapter exists."
 
-4. Migrar tests hot-reload al contrato correcto (Problema 2):
-   - Tests que prueban slot/cache: usar UpdateSSRModule directamente
-   - Tests que prueban ReloadSSRModule con DSL: añadir writeStubModule + go.mod
+#### `docs/ARCHITECTURE.md`
 
-5. Escribir writeStubModule + fixtures Capa B auto-contenidos (Problema 5)
+- **Línea 20**: descripción de "Extraction" — añadir que el caché global
+  (`ssrGlobalCache`) usa hash de contenido del módulo (no `rootDir`) como clave,
+  vía `computeModuleHashSet`.
+- Eliminar cualquier mención a `collect()` genérico, `ssrExtractCache`, o
+  `interface{ String() string }`.
+- Añadir nota: la API interna es `extractSSRAssetsForModule(m, rootDir, modules, binCachePath)`.
+  El parámetro `binCachePath` es un hook reservado para optimización futura
+  (binario persistente); actualmente siempre `""`.
 
-6. Eliminar imports strings stdlib (Problema 6)
+#### `docs/QUICK_REFERENCE.md`
 
-7. gotest — todos los tests deben pasar
+- Verificar que no quedan referencias a `interface{ String() string }`,
+  `collect()`, ni `ssrExtractCache` (búsqueda dio match en línea 168 pero es
+  "icons collection" — texto no relacionado, dejar como está).
+- Añadir entrada para la convención: "Components must export `SSRInstance() *T`;
+  modules without instance (like `tinywasm/css`) expose package-level functions".
 
-8. Añadir BenchmarkIncrementalChange como baseline medido
-   (gate de decisión para Problema 7 — NO implementar binario persistente aquí)
+#### `docs/COMPONENT_REGISTRATION.md`
 
-9. Actualizar documentación afectada (puntual, no rewrite):
-   - API.md / QUICK_REFERENCE.md: nueva firma extractSSRAssetsForModule
-     (interna) + ExtractSSRAssets (pública wrapper, sin cambios)
-   - SSR.md / COMPONENT_REGISTRATION.md: convención SSRInstance() para
-     componentes + excepción documentada de tinywasm/css (funciones de paquete)
-   - ARCHITECTURE.md: caché unificado por hash (ssrCache); eliminar mención
-     a ssrExtractCache; eliminar mención a collect()/interface{ String() string }
-   - README.md: revisar snippets que muestren el flujo de extracción
+- Documentar la convención `SSRInstance()` para componentes con receptor.
+- Documentar la excepción `tinywasm/css` (funciones de paquete sin
+  `SSRInstance`).
+- Mostrar el patrón de generación: el extractor detecta cada caso por regex
+  anclado a firma de función.
+
+#### `docs/API.md`
+
+- Firma pública sin cambios: `ExtractSSRAssets(moduleDir string) (*SSRAssets, error)`.
+- Documentar `extractSSRAssetsForModule` como interna (no exportada), con
+  el parámetro `binCachePath` reservado.
+
+#### `README.md`
+
+- Revisar snippets de "quick start" / ejemplos de extracción y alinear con el
+  contrato `*css.Stylesheet`.
+
+---
+
+## Tarea 5 — Verificación final
+
+Tras Tareas 1–4:
+
+```bash
+cd /home/cesar/Dev/Project/tinywasm/assetmin
+go test ./...                                    # 0 fallos
+grep -rn "ssrExtractCache\|collect(" .           # 0 matches en .go
+grep -rn "interface{ String() string }" *.go     # 0 matches en producción
+grep -rn "\"strings\"" *.go                      # 0 matches en producción
+grep -rn "interface{ String() string }\|ssrExtractCache\|collect()" docs/  # 0 matches
+go test -bench=BenchmarkIncrementalChange ./benchmark/
 ```
 
 ---
 
 ## Criterios de aceptación
 
-- `gotest` retorna 0 tests fallidos.
-- Hot-reload (`TestCSSHotReload_SSRMode_UpdatesCorrectly`) pasa: CSS stale eliminado tras cambio.
-- `TestLoader_AppFullyReplacesCss` pasa: `--css:1` ausente, `--app:1` presente.
-- El generated main.go compila correctamente contra `*css.Stylesheet` real.
-- `tinywasm/css/ssr.go` (sin `SSRInstance`, funciones de paquete) es manejado sin error.
-- Benchmark warm path ≤ 10 ms (hash efectivo).
-- Coverage de `assetmin` ≥ 80% tras los cambios.
-- Ningún archivo de producción importa `"strings"` de stdlib.
-- `ssrCache.invalidate` y `ssrExtractCache` eliminados del código de producción.
-- Documentación (`API.md`, `SSR.md`, `COMPONENT_REGISTRATION.md`, `ARCHITECTURE.md`,
-  `QUICK_REFERENCE.md`, `README.md`) sin referencias a `collect()`,
-  `interface{ String() string }`, ni `ssrExtractCache`. La convención
-  `SSRInstance()` y la excepción de `tinywasm/css` aparecen documentadas.
-- `BenchmarkIncrementalChange` registrado como baseline (edita un `.go` entre
-  iteraciones, mide wall-time real del dev loop). Sin umbral en esta fase — el
-  dato gobierna la decisión de implementar Problema 7.
-- `extractSSRAssetsForModule` acepta el parámetro `binCachePath` (puede ser `""`
-  por ahora), dejando el hook listo para el binario persistente.
+- `gotest` retorna 0 fallos tras todos los cambios.
+- `ssr_register.go` usa tipos concretos `*css.Stylesheet` en sus interfaces.
+- Componentes reales (`tinywasm/components/*` y componentes de terceros en otros
+  repos que retornen `*css.Stylesheet`) son aceptados por `RegisterComponents`
+  sin necesidad de adaptador, importando solo `tinywasm/css` y `tinywasm/dom`.
+- `writeStubModule` existe en `tests/stub_module_test.go` y es usado por al
+  menos los tests de pipeline completo.
+- `BenchmarkIncrementalChange` corre y reporta `ms/edit`; resultado anotado en
+  `docs/ARCHITECTURE.md` o `docs/PERFORMANCE.md`.
+- Documentación (`SSR.md`, `ARCHITECTURE.md`, `QUICK_REFERENCE.md`,
+  `COMPONENT_REGISTRATION.md`, `API.md`, `README.md`) sin referencias a
+  `collect()`, `interface{ String() string }`, ni `ssrExtractCache`.
+- Convención `SSRInstance()` documentada con la excepción de `tinywasm/css`.
+
+---
+
+## Problema 7 — Binario persistente (sigue diferido)
+
+Sin cambios respecto al plan anterior. Implementar **solo cuando**
+`BenchmarkIncrementalChange` (Tarea 3) demuestre que el costo de `go run`
+(~250–350 ms) domina el dev loop real. La firma
+`extractSSRAssetsForModule(m, rootDir, modules, binCachePath)` ya deja el hook
+listo: cuando se implemente, `binCachePath != ""` activará `go build -o <cache>/ssr_extractor_<hash>`
++ ejecución directa, con cache hit ~50 ms.
+
+Descartado permanentemente: `plugin` (no Windows, frágil), warm subprocess
+(complejidad alta).

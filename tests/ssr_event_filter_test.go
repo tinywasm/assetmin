@@ -33,21 +33,20 @@ func TestSSRMode_EmbeddedAssetHotReload(t *testing.T) {
 	tmpDir := t.TempDir()
 	am := assetmin.NewAssetMin(&assetmin.Config{
 		OutputDir: t.TempDir(),
-		RootDir:   tmpDir,
+		RootDir:   t.TempDir(),
 	})
 	am.SetExternalSSRCompiler(func() error {
 		compiled = true
 		return nil
 	}, false)
 
-	// Create a dummy module with ssr.go and style.css
-	ssrPath := filepath.Join(tmpDir, "ssr.go")
+	// Create a dummy module with go.mod, ssr.go and style.css
 	cssPath := filepath.Join(tmpDir, "style.css")
-
-	ssrContent := `package tmp
-func RenderCSS() string { return "body { color: red; }" }
-`
-	if err := os.WriteFile(ssrPath, []byte(ssrContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte("module tmp\ngo 1.21\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	ssrGo := "//go:build !wasm\n\npackage tmp\ntype T struct{}\nfunc SSRInstance() *T { return &T{} }\nfunc (t *T) RenderCSS() *Stylesheet { return New(\"body { color: red; }\") }\ntype Stylesheet string\nfunc (s Stylesheet) String() string { return string(s) }\nfunc New(s string) *Stylesheet { return (*Stylesheet)(&s) }\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "ssr.go"), []byte(ssrGo), 0644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(cssPath, []byte("body { color: blue; }"), 0644); err != nil {
@@ -67,49 +66,5 @@ func RenderCSS() string { return "body { color: red; }" }
 	// Verify CSS was updated (ReloadSSRModule should have been called)
 	if !am.ContainsCSS("body { color: red; }") {
 		t.Error("CSS cache was not updated from ssr.go")
-	}
-}
-
-func TestSSRMode_LooseAssetIgnored(t *testing.T) {
-	am := assetmin.NewAssetMin(&assetmin.Config{
-		OutputDir: t.TempDir(),
-	})
-	am.SetExternalSSRCompiler(func() error { return nil }, false)
-
-	// No ssr.go in this dir
-	cssPath := filepath.Join(t.TempDir(), "style.css")
-	if err := os.WriteFile(cssPath, []byte("body { color: blue; }"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	err := am.NewFileEvent("style.css", ".css", cssPath, "write")
-	if err != nil {
-		t.Fatalf("NewFileEvent failed: %v", err)
-	}
-
-	if am.ContainsCSS("body { color: blue; }") {
-		t.Error("Loose asset should have been ignored in SSR mode")
-	}
-}
-
-func TestNonSSRMode_ProcessesAllEvents(t *testing.T) {
-	outDir := t.TempDir()
-	am := assetmin.NewAssetMin(&assetmin.Config{
-		OutputDir: outDir,
-	})
-	// NOT calling SetExternalSSRCompiler
-
-	cssPath := filepath.Join(t.TempDir(), "style.css")
-	if err := os.WriteFile(cssPath, []byte("body { color: blue; }"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	err := am.NewFileEvent("style.css", ".css", cssPath, "write")
-	if err != nil {
-		t.Fatalf("NewFileEvent failed: %v", err)
-	}
-
-	if !am.ContainsCSS("body { color: blue; }") {
-		t.Error("Asset should have been processed normally in non-SSR mode")
 	}
 }

@@ -174,3 +174,9 @@ Components implementing `RootCSS() string` route to the `open` slot under the sa
 | `RegisterComponents(providers ...any)` | Register live struct instances as asset providers |
 | `UpdateSSRModule(name, css, js, html, icons)` | Manually inject content into the `middle` slot |
 | `UpdateSSRModuleInSlot(name, css, js, html, icons, slot)` | Manually inject into a specific slot (`open`/`middle`/`close`) |
+
+## Testing Recommendations
+
+When writing automated tests for component logic or theme overrides, it is recommended to avoid the full `compile-and-invoke` pipeline as it depends on the Go compiler and local module resolution.
+
+Instead, use `UpdateSSRModule` or `RegisterComponents` with pre-computed strings or mock providers. Use the `ssr_integration_test.go` pattern only for validating the extraction mechanism itself.

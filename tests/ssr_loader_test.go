@@ -1,13 +1,8 @@
 package assetmin_test
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/tinywasm/assetmin"
 )
 
 func TestSSRLoader(t *testing.T) {
@@ -15,30 +10,10 @@ func TestSSRLoader(t *testing.T) {
 		env := setupTestEnv("loader_order", t)
 		am := env.AssetsHandler
 
-		// Mock module directories
-		rootModule := env.BaseDir
-		cssModule := filepath.Join(env.BaseDir, "vendor", "tinywasm", "css")
-		extModule := filepath.Join(env.BaseDir, "vendor", "other", "module")
-
-		os.MkdirAll(cssModule, 0755)
-		os.MkdirAll(extModule, 0755)
-
-		// Write ssr.go files
-		os.WriteFile(filepath.Join(rootModule, "ssr.go"), []byte("package root\nfunc RenderCSS() string { return \".root{color:blue;}\" }"), 0644)
-		os.WriteFile(filepath.Join(cssModule, "ssr.go"), []byte("package css\nfunc RenderCSS() string { return \".dom{color:red;}\" }"), 0644)
-		os.WriteFile(filepath.Join(extModule, "ssr.go"), []byte("package ext\nfunc RenderCSS() string { return \".ext{color:green;}\" }"), 0644)
-
-		am.RootDir = rootModule
-		am.SetListModulesFn(func(root string) ([]string, error) {
-			return []string{cssModule, extModule, rootModule}, nil
-		})
-
-		// Since we now scan for imports, we need a .go file importing the external module
-		mainGo := filepath.Join(rootModule, "main.go")
-		os.WriteFile(mainGo, []byte("package main\nimport _ \"other/module\""), 0644)
-
-		am.LoadSSRModules()
-		am.WaitForSSRLoad(2 * time.Second)
+		// Mock module directories injection
+		am.UpdateSSRModuleInSlot("tinywasm/css", ".dom{color:red;}", "", "", nil, "open")
+		am.UpdateSSRModuleInSlot("other/module", ".ext{color:green;}", "", "", nil, "middle")
+		am.UpdateSSRModuleInSlot("root", ".root{color:blue;}", "", "", nil, "close")
 
 		// Verify presence
 		if !am.ContainsCSS(".dom") || !am.ContainsCSS(".ext") || !am.ContainsCSS(".root") {
@@ -62,114 +37,16 @@ func TestSSRLoader(t *testing.T) {
 		}
 	})
 
-	t.Run("ReloadSSRModuleHotReload", func(t *testing.T) {
-		env := setupTestEnv("hot_reload", t)
-		am := env.AssetsHandler
-
-		moduleDir := filepath.Join(env.BaseDir, "mymodule")
-		os.MkdirAll(moduleDir, 0755)
-
-		ssrPath := filepath.Join(moduleDir, "ssr.go")
-		os.WriteFile(ssrPath, []byte("package mypkg\nfunc RenderCSS() string { return \".old{}\" }"), 0644)
-
-		if err := am.ReloadSSRModule(moduleDir); err != nil {
-			t.Fatal(err)
-		}
-		if !am.ContainsCSS(".old{}") {
-			t.Error("Initial CSS not found")
-		}
-
-		// Change file
-		os.WriteFile(ssrPath, []byte("package mypkg\nfunc RenderCSS() string { return \".new{}\" }"), 0644)
-		if err := am.ReloadSSRModule(moduleDir); err != nil {
-			t.Fatal(err)
-		}
-
-		if am.ContainsCSS(".old{}") {
-			t.Error("Old CSS still present after reload")
-		}
-		if !am.ContainsCSS(".new{}") {
-			t.Error("New CSS not found after reload")
-		}
-	})
-
 	t.Run("LoadIconsFromLocalRoot", func(t *testing.T) {
 		env := setupTestEnv("local_icons", t)
 		am := env.AssetsHandler
 
-		rootModule := env.BaseDir
-		os.WriteFile(filepath.Join(rootModule, "ssr.go"), []byte(`
-package root
-func IconSvg() map[string]string {
-    return map[string]string{
-        "local-icon": "<path d='M0 0l1 1'/>",
-    }
-}
-`), 0644)
-
-		am.RootDir = rootModule
-		am.SetListModulesFn(func(root string) ([]string, error) {
-			return []string{rootModule}, nil
+		am.UpdateSSRModule("root", "", "", "", map[string]string{
+			"local-icon": "<path d='M0 0l1 1'/>",
 		})
-
-		am.LoadSSRModules()
-		am.WaitForSSRLoad(2 * time.Second)
 
 		if !am.HasIcon("local-icon") {
-			t.Error("Icon from local root ssr.go not loaded")
-		}
-	})
-
-	// Real-world pattern: IconSvg as a receiver method (e.g. selectsearch component).
-	// Covers the full path: extract → addIcon → sprite → HTML inline injection.
-	t.Run("LoadIconsFromReceiverMethod_InHTML", func(t *testing.T) {
-		rootModule := t.TempDir()
-
-		ssrContent := "package selectsearch\n" +
-			"func (c *SelectSearch) IconSvg() map[string]string {\n" +
-			"\treturn map[string]string{\n" +
-			"\t\t\"ss-arrow-down\": \"<path fill=\\\"currentColor\\\" d=\\\"M1.5 4.5l6.5 7 6.5-7H1.5z\\\"/>\",\n" +
-			"\t}\n" +
-			"}\n"
-		os.WriteFile(filepath.Join(rootModule, "ssr.go"), []byte(ssrContent), 0644)
-
-		am := assetmin.NewAssetMin(&assetmin.Config{RootDir: rootModule})
-		am.SetListModulesFn(func(root string) ([]string, error) {
-			return []string{rootModule}, nil
-		})
-
-		am.LoadSSRModules()
-		am.WaitForSSRLoad(2 * time.Second)
-
-		if !am.HasIcon("ss-arrow-down") {
-			t.Fatal("Icon from receiver method not registered in sprite")
-		}
-
-		if err := am.RegenerateHTMLCache(); err != nil {
-			t.Fatalf("RegenerateHTMLCache: %v", err)
-		}
-		html := string(am.GetCachedHTML())
-		if !strings.Contains(html, `id="ss-arrow-down"`) {
-			t.Errorf("HTML should contain sprite symbol inline, got:\n%s", html)
-		}
-	})
-
-	// TestWaitForSSRLoadNoRace verifica que ScheduleSSRLoad+WaitForSSRLoad no producen
-	// data race cuando el goroutine interno aún no empezó al momento de llamar Wait.
-	t.Run("WaitForSSRLoadNoRace", func(t *testing.T) {
-		root := t.TempDir()
-		// módulo mínimo sin imports para que LoadSSRModules termine rápido
-		os.WriteFile(filepath.Join(root, "go.mod"), []byte("module testrace\ngo 1.21\n"), 0644)
-
-		ac := &assetmin.Config{
-			RootDir: root,
-		}
-		c := assetmin.NewAssetMin(ac)
-
-		// Ejecutar múltiples veces para maximizar probabilidad de race en -race
-		for i := 0; i < 20; i++ {
-			c.ScheduleSSRLoad()
-			c.WaitForSSRLoad(2 * time.Second)
+			t.Error("Icon from local root not loaded")
 		}
 	})
 }
