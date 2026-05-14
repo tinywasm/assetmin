@@ -29,13 +29,13 @@ var rootCSSRaw string
 // (rendered first in <head>). At most one module wins this slot —
 // see "Single-override rule" below.
 func RootCSS() *css.Stylesheet {
-    return css.New(css.Raw(rootCSSRaw))
+    return css.NewStylesheet(css.Raw(rootCSSRaw))
 }
 
 // Component-level CSS. Routed to the `middle` slot for dependencies
 // or to the `close` slot when this is the root project.
 func RenderCSS() *css.Stylesheet {
-    return css.New(css.Rule(".my-widget", css.Decl("color", "red")))
+    return css.NewStylesheet(css.Rule(".my-widget", css.Decl("color", "red")))
 }
 
 // Component-level JS. Same slot routing as RenderCSS.
@@ -89,7 +89,7 @@ import "github.com/tinywasm/css"
 type Button struct{}
 
 func (b *Button) RenderCSS() *css.Stylesheet {
-    return css.New(
+    return css.NewStylesheet(
         css.Rule(".button", css.Decl("padding", "1rem")),
     )
 }
