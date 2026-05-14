@@ -33,6 +33,10 @@ type ModuleAlias struct {
 	HasIcons    bool
 }
 
+func (m ModuleAlias) HasAnyFeature() bool {
+	return m.HasInstance || m.HasRoot || m.HasRender || m.HasHTML || m.HasJS || m.HasIcons
+}
+
 // Global mutex for SSR extraction protection
 var ssrExtractMu sync.Mutex
 
@@ -78,7 +82,7 @@ import (
 	"encoding/json"
 	"os"
 	{{range .Modules}}
-	{{if .Path}}{{.Alias}} "{{.Path}}"{{end}}
+	{{if .HasAnyFeature}}{{.Alias}} "{{.Path}}"{{end}}
 	{{end}}
 )
 
@@ -93,7 +97,7 @@ type ssr struct {
 func main() {
 	all := make(map[string]ssr)
 	{{range .Modules}}
-	{{if .Path}}
+	{{if .HasAnyFeature}}
 	{
 		var s ssr
 		{{if .HasInstance}}

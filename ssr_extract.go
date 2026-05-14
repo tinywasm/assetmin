@@ -64,8 +64,15 @@ func ExtractSSRAssets(moduleDir string) (*SSRAssets, error) {
 // extractSSRAssetsForModule is the internal implementation that takes a resolved Module.
 // binCachePath is reserved for future optimization (Problem 7).
 func extractSSRAssetsForModule(m Module, rootDir string, allModules []Module, binCachePath string) (*SSRAssets, error) {
+	// Ensure m is in the extractor's module set, so the generated main.go
+	// imports it and the results map carries an entry for m.Path.
+	modulesForExtract := allModules
+	if !containsModule(allModules, m) {
+		modulesForExtract = append(append([]Module(nil), allModules...), m)
+	}
+
 	// Compute hash of all modules to check global cache
-	hashKey, err := computeModuleHashSet(allModules)
+	hashKey, err := computeModuleHashSet(modulesForExtract)
 	if err != nil {
 		return nil, fmt.Err("failed to compute module hash", err)
 	}
@@ -75,7 +82,7 @@ func extractSSRAssetsForModule(m Module, rootDir string, allModules []Module, bi
 	cachedResults, hasCached := ssrGlobalCache.get(hashKey)
 	if !hasCached {
 		// Do compile-and-invoke
-		results, err := invokeSSRExtractorOnce(rootDir, allModules)
+		results, err := invokeSSRExtractorOnce(rootDir, modulesForExtract)
 		if err != nil {
 			ssrExtractMu.Unlock()
 			return nil, err
@@ -121,6 +128,15 @@ func findProjectRoot(startDir string) (string, error) {
 		}
 		dir = parent
 	}
+}
+
+func containsModule(mods []Module, m Module) bool {
+	for _, x := range mods {
+		if x.Path == m.Path && x.Dir == m.Dir {
+			return true
+		}
+	}
+	return false
 }
 
 // discoverModules discovers all modules in the project using go list.

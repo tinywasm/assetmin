@@ -48,10 +48,16 @@ func (t *T) RenderCSS() *Stylesheet { return nil }
 
 func TestGenerateExtractorMain(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Create a module with some features to ensure it is imported
+	modDir := filepath.Join(tmpDir, "mod1")
+	os.MkdirAll(modDir, 0755)
+	os.WriteFile(filepath.Join(modDir, "ssr.go"), []byte("package mod1\nfunc RenderCSS() {}"), 0644)
+
 	outputFile := filepath.Join(tmpDir, "main.go")
 
 	modules := []assetmin.Module{
-		{Path: "example.com/mod1", Dir: ""},
+		{Path: "example.com/mod1", Dir: modDir},
 	}
 
 	err := assetmin.GenerateExtractorMain(outputFile, modules)
