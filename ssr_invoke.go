@@ -1,6 +1,7 @@
 package assetmin
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -53,9 +54,11 @@ func invokeSSRExtractorOnce(rootDir string, modules []Module) (map[string]ssrCol
 	// Run go run main.go and capture JSON output
 	cmd := exec.Command("go", "run", mainFile)
 	cmd.Dir = rootDir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Err("go run failed", err)
+		return nil, fmt.Err("go run failed", err, stderr.String())
 	}
 
 	// Parse the JSON output
