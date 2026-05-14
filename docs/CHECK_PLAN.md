@@ -1,4 +1,7 @@
-# PLAN — Fix empty `/style.css` for subpackage SSR modules
+# CHECK_PLAN — Fix empty `/style.css` for subpackage SSR modules
+
+> **Status:** code patches applied. Unit test green. Production browser
+> verification still pending (see _Verification_ below).
 
 ## Problem
 
@@ -54,13 +57,15 @@ The extra symptom (unused-import compile error) was masked by
 `exec.Cmd.Output()` discarding stderr; this PLAN's first patch already
 captures stderr into the wrapped error so future regressions surface.
 
-## Fix
+## Fix (applied)
+
+Two complementary patches landed:
+
+### 1. `extractSSRAssetsForModule` ensures `m` is in the extractor set
 
 The contract of `extractSSRAssetsForModule(m, rootDir, allModules, _)` is:
-"return the SSR assets for `m`." It must therefore guarantee that `m`
-appears in the module set passed to `invokeSSRExtractorOnce`.
-
-Patch `extractSSRAssetsForModule`:
+"return the SSR assets for `m`." It now guarantees that `m` appears in
+the module set passed to `invokeSSRExtractorOnce`.
 
 ```go
 func extractSSRAssetsForModule(m Module, rootDir string, allModules []Module, binCachePath string) (*SSRAssets, error) {
@@ -98,33 +103,59 @@ Behavioural notes:
   per-subpackage. That is the correct granularity (different subpackages
   may have different SSR outputs even when the parent module set is fixed).
 
-Also keep the stderr-capture fix in `invokeSSRExtractorOnce` so future
-`go run` failures are visible in `c.Logger`-routed errors instead of
-returning a bare `exit status 1`.
+### 2. `HasAnyFeature` gates imports in the generated `main.go`
 
-## Files to change
+`ssr_invoke.go` adds `ModuleAlias.HasAnyFeature()` and the template now
+emits `import` and call blocks **only** for modules whose `ssr.go`
+exposes at least one SSR function:
 
-- `ssr_extract.go`:
-  - `extractSSRAssetsForModule`: append `m` to the module set when missing
-    before computing hash and invoking the extractor.
-  - Add small helper `containsModule`.
-- `ssr_invoke.go`: keep stderr-into-error wrap (already applied).
-- `ssr_extract_subpackage_test.go`: stays as the regression test.
+```gotmpl
+{{if .HasAnyFeature}}{{.Alias}} "{{.Path}}"{{end}}
+```
+
+This eliminates the `imported and not used` compile failure that
+manifested when a parent module without `ssr.go` was the only entry in
+the module set. It is a defence-in-depth fix: the appended `m` from
+patch (1) is what makes the subpackage's CSS reach the output, while
+`HasAnyFeature` keeps the generated program compilable when the
+non-SSR-bearing parent is also present.
+
+### 3. Stderr capture in `invokeSSRExtractorOnce`
+
+`exec.Cmd.Stderr` is now redirected into a buffer and folded into the
+returned error, so future `go run` failures surface as
+`go run failed: exit status 1: <compiler output>` rather than a bare
+`exit status 1`. Without this, the original bug took longer to diagnose.
+
+## Files changed
+
+- [`ssr_extract.go`](../ssr_extract.go) — `containsModule` helper +
+  `modulesForExtract` append in `extractSSRAssetsForModule`.
+- [`ssr_invoke.go`](../ssr_invoke.go) — `HasAnyFeature()` method,
+  template gates imports and call sites on it, stderr capture in
+  `invokeSSRExtractorOnce`.
+- [`ssr_extract_subpackage_test.go`](../ssr_extract_subpackage_test.go) —
+  regression test, lives in `package assetmin` (internal) so it can
+  exercise `extractSSRAssetsForModule` directly.
 
 ## Verification
 
-1. `go test -run TestExtractSSRAssetsForModule_Subpackage -v .` — passes.
-2. `go test ./...` in `assetmin/` — full suite stays green.
-3. Restart tinywasm daemon, reload `layout/platformd/web` demo:
-   - `curl -s http://localhost:6060/style.css | wc -c` returns ≫ 0.
-   - `browser_evaluate_js` reports non-empty `getComputedStyle(.pd-root)`.
+| Step | Status |
+|---|---|
+| `go test -run TestExtractSSRAssetsForModule_Subpackage -v .` | ✅ PASS |
+| `go test ./...` across `assetmin/`, `assetmin/tests/`, `assetmin/benchmark/` | ✅ PASS (~8s) |
+| Restart tinywasm daemon, reload `layout/platformd/web` demo | ⏳ pending |
+| `curl -s http://localhost:6060/style.css \| wc -c` returns ≫ 0 | ⏳ pending |
+| `browser_evaluate_js` reports non-empty `getComputedStyle(.pd-root)` | ⏳ pending — also blocked on the platformd render bug (see [`layout/docs/PLAN.md`](../../layout/docs/PLAN.md)) |
 
 ## Out of scope
 
-- Fixing the rendering side-effect introduced by the recent `*Element` →
-  `Element` change in `layout/platformd` (root tag is missing because
-  `Render()` returns `&p.Element` with no tag set). That belongs in a
-  PLAN under `layout/platformd/docs/`, not here.
-- Auditing why `loadSSRModulesLocked` swallows extractor errors (`if err
-  == nil`). Surfacing those errors to the logger is a follow-up — out of
-  scope for this CSS-emptiness bug fix, but recommended.
+- The platformd `Render()` rendering bug (root `<` tag with no element
+  name). Has its own plan at [`layout/docs/PLAN.md`](../../layout/docs/PLAN.md).
+  That is a separate bug — even with this assetmin fix delivering CSS,
+  the platformd HTML is malformed without that other patch.
+- Auditing why `loadSSRModulesLocked` swallows extractor errors
+  (`if err == nil` discards every error returned by
+  `extractSSRAssetsForModule`). Surfacing those into `c.Logger` would
+  have shortened diagnosis from hours to seconds. Recommended follow-up,
+  but not required for this bug fix.
