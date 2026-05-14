@@ -12,7 +12,7 @@ func TestExtract_RootCSS_FromLiteral(t *testing.T) {
 
 	// Create parent go.mod
 	gomod := `module example.com/test
-go 1.21
+go 1.24
 `
 	if err := os.WriteFile(filepath.Join(parentDir, "go.mod"), []byte(gomod), 0644); err != nil {
 		t.Fatalf("Failed to write parent go.mod: %v", err)
@@ -21,20 +21,17 @@ go 1.21
 	moduleDir := createSSRTestModule(t, parentDir, "example.com/test/theme", "theme",
 		`type Theme struct{}
 
-func (t *Theme) RenderCSS() interface{ String() string } {
-	return StringValue("")
+func (t *Theme) RenderCSS() *css.Stylesheet {
+	return nil
 }
 
-func (t *Theme) RootCSS() interface{ String() string } {
-	return StringValue(":root{--x:1;}")
+func (t *Theme) RootCSS() *css.Stylesheet {
+	return css.New(css.Raw(":root{--x:1;}"))
 }
 
 func (t *Theme) RenderHTML() string { return "" }
 func (t *Theme) RenderJS() string { return "" }
 func (t *Theme) IconSvg() map[string]string { return nil }
-
-type StringValue string
-func (s StringValue) String() string { return string(s) }
 `)
 
 	assets, err := assetmin.ExtractSSRAssets(moduleDir)
@@ -52,7 +49,7 @@ func TestExtract_RootCSS_Missing(t *testing.T) {
 
 	// Create parent go.mod with workspace setup
 	gomod := `module example.com/test
-go 1.21
+go 1.24
 
 require example.com/test/noroot v0.0.0
 replace example.com/test/noroot => ./noroot
@@ -69,7 +66,9 @@ replace example.com/test/noroot => ./noroot
 
 	// Write noroot go.mod
 	noRootGomod := `module example.com/test/noroot
-go 1.21
+go 1.24
+
+require github.com/tinywasm/css v0.0.4
 `
 	if err := os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte(noRootGomod), 0644); err != nil {
 		t.Fatalf("Failed to write noroot go.mod: %v", err)
@@ -80,18 +79,17 @@ go 1.21
 
 package noroot
 
+import "github.com/tinywasm/css"
+
 type Noroot struct{}
 
-func (n *Noroot) RenderCSS() interface{ String() string } {
-	return StringValue(".component { color: blue; }")
+func (n *Noroot) RenderCSS() *css.Stylesheet {
+	return css.New(css.Raw(".component { color: blue; }"))
 }
 
 func (n *Noroot) RenderHTML() string { return "" }
 func (n *Noroot) RenderJS() string { return "" }
 func (n *Noroot) IconSvg() map[string]string { return nil }
-
-type StringValue string
-func (s StringValue) String() string { return string(s) }
 
 func SSRInstance() *Noroot {
 	return &Noroot{}
@@ -116,7 +114,7 @@ func TestExtract_BothRootAndRender(t *testing.T) {
 
 	// Create parent go.mod
 	gomod := `module example.com/test
-go 1.21
+go 1.24
 `
 	if err := os.WriteFile(filepath.Join(parentDir, "go.mod"), []byte(gomod), 0644); err != nil {
 		t.Fatalf("Failed to write parent go.mod: %v", err)
@@ -125,20 +123,17 @@ go 1.21
 	moduleDir := createSSRTestModule(t, parentDir, "example.com/test/combined", "combined",
 		`type Combined struct{}
 
-func (c *Combined) RootCSS() interface{ String() string } {
-	return StringValue(":root { --primary: blue; }")
+func (c *Combined) RootCSS() *css.Stylesheet {
+	return css.New(css.Raw(":root { --primary: blue; }"))
 }
 
-func (c *Combined) RenderCSS() interface{ String() string } {
-	return StringValue(".btn { background: var(--primary); }")
+func (c *Combined) RenderCSS() *css.Stylesheet {
+	return css.New(css.Raw(".btn { background: var(--primary); }"))
 }
 
 func (c *Combined) RenderHTML() string { return "<button></button>" }
 func (c *Combined) RenderJS() string { return "" }
 func (c *Combined) IconSvg() map[string]string { return nil }
-
-type StringValue string
-func (s StringValue) String() string { return string(s) }
 `)
 
 	assets, err := assetmin.ExtractSSRAssets(moduleDir)
@@ -160,7 +155,7 @@ func TestExtract_RootCSS_FromEmbed(t *testing.T) {
 
 	// Create parent go.mod
 	gomod := `module example.com/test
-go 1.21
+go 1.24
 `
 	if err := os.WriteFile(filepath.Join(parentDir, "go.mod"), []byte(gomod), 0644); err != nil {
 		t.Fatalf("Failed to write parent go.mod: %v", err)
@@ -171,20 +166,17 @@ go 1.21
 
 const embeddedCSS = ":root { --bg: #fff; }"
 
-func (e *Embed) RootCSS() interface{ String() string } {
-	return StringValue(embeddedCSS)
+func (e *Embed) RootCSS() *css.Stylesheet {
+	return css.New(css.Raw(embeddedCSS))
 }
 
-func (e *Embed) RenderCSS() interface{ String() string } {
-	return StringValue("")
+func (e *Embed) RenderCSS() *css.Stylesheet {
+	return nil
 }
 
 func (e *Embed) RenderHTML() string { return "" }
 func (e *Embed) RenderJS() string { return "" }
 func (e *Embed) IconSvg() map[string]string { return nil }
-
-type StringValue string
-func (s StringValue) String() string { return string(s) }
 `)
 
 	assets, err := assetmin.ExtractSSRAssets(moduleDir)

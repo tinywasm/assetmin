@@ -6,18 +6,20 @@
 ## Features
 
 - **Bundling & Minification**: CSS, JS, HTML, and SVG.
-- **Component Registration**: Automatically extract assets from Go structs.
-- **SSR Support**: Safe injection of public component HTML.
+- **SSR Support**: Automatic discovery and extraction of assets from Go modules.
+- **Component Registration**: Extract assets from live Go structs.
+- **Typed CSS**: Native support for `github.com/tinywasm/css` stylesheets.
 - **Memory & Disk Modes**: Serve directly from RAM or build to disk.
-- **Hot Reload**: Thread-safe cache regeneration.
+- **Hot Reload**: Instant thread-safe cache regeneration.
 
 ## Documentation
 
 1.  [Architecture](docs/ARCHITECTURE.md)
 2.  [Assets](docs/ASSETS.md)
 3.  [Component Registration](docs/COMPONENT_REGISTRATION.md)
-4.  [HTTP Handlers](docs/HTTP_HANDLERS.md)
-5.  [SSR](docs/SSR.md)
+4.  [SSR & Module Extraction](docs/SSR.md)
+5.  [API Reference](docs/API.md)
+6.  [HTTP Handlers](docs/HTTP_HANDLERS.md)
 
 ### Diagrams
 - [Core Architecture Flow](docs/diagrams/architecture.md)
@@ -25,18 +27,12 @@
 
 ## Performance
 
-The new compile-and-invoke SSR extraction mechanism replaces AST-based parsing with actual Go code execution, providing:
-- **~5× faster** cold extraction for typical apps (7 components)
-- **Hash-based caching** for instant warm extractions (~5-10ms)
-- **Full typed CSS support** without performance penalty
+The compile-and-invoke SSR extraction mechanism provides:
+- **Fast cold extraction**: ~450ms for typical projects.
+- **Hash-based caching**: Instant warm extractions (~1ms).
+- **Full typed CSS support** without performance penalty.
 
-See [Benchmark Suite](benchmark/README.md) for detailed performance measurements and guidance.
-
-**Quick comparison:**
-```
-Old AST approach (7 modules):  2,100ms per build
-New compile-and-invoke:        ~450ms first, then 5-10ms cached
-```
+See [Benchmark Suite](benchmark/README.md) for detailed performance measurements.
 
 ## Installation
 
@@ -46,38 +42,29 @@ go get github.com/tinywasm/assetmin
 
 ## Get Started
 
-Here is a quick example of how to initialize and use AssetMin in your project:
-
 ```go
 package main
 
 import (
 	"log"
-
 	"github.com/tinywasm/assetmin"
 )
 
 func main() {
-	// 1. Configure AssetMin
 	config := &assetmin.Config{
 		OutputDir:       "./public",
 		RootDir:         ".",
 		AppName:         "MyApp",
-		AssetsURLPrefix: "static",
-		DevMode:         true, // Disable caching during development
+		AssetsURLPrefix: "/static/",
 	}
 
-	// 2. Initialize the bundler
-	bundler := assetmin.NewAssetMin(config)
+	am := assetmin.NewAssetMin(config)
 
-	// 3. (Optional) Load SSR modules if using Server-Side Rendering
-	// bundler.LoadSSRModules()
-
-	// 4. You can now serve your minified assets via HTTP handlers!
-	// See docs/HTTP_HANDLERS.md for more details.
+	// Load assets from imported Go modules asynchronously
+	am.LoadSSRModules()
 	
 	log.Println("Asset bundler is ready!")
 }
 ```
 
-For more advanced use cases, such as extracting assets from Go structs or setting up file watchers, please refer to the documentation links above.
+For more advanced use cases, such as registration of components or setting up file watchers, please refer to the documentation.

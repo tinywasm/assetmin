@@ -17,7 +17,7 @@ func createSSRTestModule(t *testing.T, parentDir, modulePath, pkgName, body stri
 	}
 
 	// Write go.mod for the submodule
-	gomod := fmt.Sprintf("module %s\n\ngo 1.21\n", modulePath)
+	gomod := fmt.Sprintf("module %s\n\ngo 1.24\n\nrequire github.com/tinywasm/css v0.0.4\n", modulePath)
 	if err := os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte(gomod), 0644); err != nil {
 		t.Fatalf("Failed to write go.mod: %v", err)
 	}
@@ -49,6 +49,8 @@ func createSSRTestModule(t *testing.T, parentDir, modulePath, pkgName, body stri
 
 package %s
 
+import "github.com/tinywasm/css"
+
 %s
 
 func SSRInstance() *%s {
@@ -68,23 +70,19 @@ func TestExtractSSRAssets(t *testing.T) {
 		parentDir := t.TempDir()
 
 		// Create parent go.mod
-		gomod := `module example.com/test
-go 1.21
-`
+		gomod := "module example.com/test\ngo 1.24\n"
 		if err := os.WriteFile(filepath.Join(parentDir, "go.mod"), []byte(gomod), 0644); err != nil {
 			t.Fatalf("Failed to write parent go.mod: %v", err)
 		}
 
 		moduleDir := createSSRTestModule(t, parentDir, "example.com/test/css", "css",
 			`type Css struct{}
-func (c *Css) RenderCSS() interface{ String() string } {
-	return StringValue(".cls{color:red;}")
+func (c *Css) RenderCSS() *css.Stylesheet {
+	return css.New(css.Raw(".cls{color:red;}"))
 }
 func (c *Css) RenderHTML() string { return "" }
 func (c *Css) RenderJS() string { return "" }
 func (c *Css) IconSvg() map[string]string { return nil }
-type StringValue string
-func (s StringValue) String() string { return string(s) }
 `)
 
 		assets, err := assetmin.ExtractSSRAssets(moduleDir)
@@ -100,23 +98,19 @@ func (s StringValue) String() string { return string(s) }
 		parentDir := t.TempDir()
 
 		// Create parent go.mod
-		gomod := `module example.com/test
-go 1.21
-`
+		gomod := "module example.com/test\ngo 1.24\n"
 		if err := os.WriteFile(filepath.Join(parentDir, "go.mod"), []byte(gomod), 0644); err != nil {
 			t.Fatalf("Failed to write parent go.mod: %v", err)
 		}
 
 		moduleDir := createSSRTestModule(t, parentDir, "example.com/test/js", "js",
 			`type Js struct{}
-func (j *Js) RenderCSS() interface{ String() string } {
-	return StringValue("")
+func (j *Js) RenderCSS() *css.Stylesheet {
+	return nil
 }
 func (j *Js) RenderHTML() string { return "" }
 func (j *Js) RenderJS() string { return "console.log(\"hello\");" }
 func (j *Js) IconSvg() map[string]string { return nil }
-type StringValue string
-func (s StringValue) String() string { return string(s) }
 `)
 
 		assets, err := assetmin.ExtractSSRAssets(moduleDir)
@@ -132,17 +126,15 @@ func (s StringValue) String() string { return string(s) }
 		parentDir := t.TempDir()
 
 		// Create parent go.mod
-		gomod := `module example.com/test
-go 1.21
-`
+		gomod := "module example.com/test\ngo 1.24\n"
 		if err := os.WriteFile(filepath.Join(parentDir, "go.mod"), []byte(gomod), 0644); err != nil {
 			t.Fatalf("Failed to write parent go.mod: %v", err)
 		}
 
 		moduleDir := createSSRTestModule(t, parentDir, "example.com/test/icons", "icons",
 			`type Icons struct{}
-func (i *Icons) RenderCSS() interface{ String() string } {
-	return StringValue("")
+func (i *Icons) RenderCSS() *css.Stylesheet {
+	return nil
 }
 func (i *Icons) RenderHTML() string { return "" }
 func (i *Icons) RenderJS() string { return "" }
@@ -152,8 +144,6 @@ func (i *Icons) IconSvg() map[string]string {
 		"user": "<svg>user</svg>",
 	}
 }
-type StringValue string
-func (s StringValue) String() string { return string(s) }
 `)
 
 		assets, err := assetmin.ExtractSSRAssets(moduleDir)
@@ -174,17 +164,15 @@ func (s StringValue) String() string { return string(s) }
 		parentDir := t.TempDir()
 
 		// Create parent go.mod
-		gomod := `module example.com/test
-go 1.21
-`
+		gomod := "module example.com/test\ngo 1.24\n"
 		if err := os.WriteFile(filepath.Join(parentDir, "go.mod"), []byte(gomod), 0644); err != nil {
 			t.Fatalf("Failed to write parent go.mod: %v", err)
 		}
 
 		moduleDir := createSSRTestModule(t, parentDir, "example.com/test/search", "search",
 			`type Search struct{}
-func (s *Search) RenderCSS() interface{ String() string } {
-	return StringValue("")
+func (s *Search) RenderCSS() *css.Stylesheet {
+	return nil
 }
 func (s *Search) RenderHTML() string { return "" }
 func (s *Search) RenderJS() string { return "" }
@@ -193,8 +181,6 @@ func (s *Search) IconSvg() map[string]string {
 		"search-arrow-down": "<path fill=\"currentColor\" d=\"M1.5 4.5l6.5 7 6.5-7H1.5z\"/>",
 	}
 }
-type StringValue string
-func (s StringValue) String() string { return string(s) }
 `)
 
 		assets, err := assetmin.ExtractSSRAssets(moduleDir)
@@ -210,23 +196,19 @@ func (s StringValue) String() string { return string(s) }
 		parentDir := t.TempDir()
 
 		// Create parent go.mod
-		gomod := `module example.com/test
-go 1.21
-`
+		gomod := "module example.com/test\ngo 1.24\n"
 		if err := os.WriteFile(filepath.Join(parentDir, "go.mod"), []byte(gomod), 0644); err != nil {
 			t.Fatalf("Failed to write parent go.mod: %v", err)
 		}
 
 		moduleDir := createSSRTestModule(t, parentDir, "example.com/test/ss", "ss",
 			`type Ss struct{}
-func (s *Ss) RenderCSS() interface{ String() string } {
-	return StringValue(".ss{color:red;}")
+func (s *Ss) RenderCSS() *css.Stylesheet {
+	return css.New(css.Raw(".ss{color:red;}"))
 }
 func (s *Ss) RenderHTML() string { return "" }
 func (s *Ss) RenderJS() string { return "" }
 func (s *Ss) IconSvg() map[string]string { return nil }
-type StringValue string
-func (s StringValue) String() string { return string(s) }
 `)
 
 		assets, err := assetmin.ExtractSSRAssets(moduleDir)

@@ -1,9 +1,12 @@
 package assetmin
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/tinywasm/css"
+)
 
-type rootCssProvider interface{ RootCSS() interface{ String() string } }
-type cssProvider interface{ RenderCSS() interface{ String() string } }
+type rootCssProvider interface{ RootCSS() *css.Stylesheet }
+type cssProvider interface{ RenderCSS() *css.Stylesheet }
 type jsProvider interface{ RenderJS() string }
 type htmlProvider interface{ RenderHTML() string }
 type iconProvider interface{ IconSvg() map[string]string }

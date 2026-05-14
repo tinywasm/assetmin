@@ -2,13 +2,16 @@ package assetmin_test
 
 import (
 	"testing"
+	"github.com/tinywasm/css"
 )
 
 type mockComponent struct {
 	css string
 }
 
-func (m *mockComponent) RenderCSS() interface{ String() string } { return StringValue(m.css) }
+func (m *mockComponent) RenderCSS() *css.Stylesheet {
+	return css.New(css.Raw(m.css))
+}
 
 func TestSSRRegistration(t *testing.T) {
 	t.Run("UpdateSSRModuleNoDuplicate", func(t *testing.T) {

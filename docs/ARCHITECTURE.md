@@ -16,22 +16,30 @@
 ## Data Flow
 
 1.  **Discovery**: `assetmin` uses `go list` to find all modules in the project.
-2.  **Compilation**: A temporary `main.go` is generated that imports all modules and invokes their `SSRInstance()` functions.
+2.  **Compilation**: A temporary `main.go` is generated that imports all modules and invokes their `SSRInstance()` functions (or package-level functions).
 3.  **Extraction**: `go run main.go` executes once, calling asset methods (`RenderCSS()`, `RenderHTML()`, etc.) and collecting results as JSON.
-4.  **Caching**: Results are cached by module file hash set to avoid re-compilation when nothing changed.
+4.  **Caching**: Results are cached globally (`ssrGlobalCache`) using the hash of module Go files (not `rootDir`) as key, via `computeModuleHashSet`.
 5.  **Injection**: Extracted assets are injected into the appropriate handlers and slots.
 6.  **Processing**: Concatenation and Minification (using `tdewolff/minify`).
 7.  **Output**: HTTP serving or File system writing.
 
 ## Compile-and-Invoke Mechanism
 
-The new extraction mechanism replaces AST-based parsing with actual Go code compilation and execution:
+The extraction mechanism uses actual Go code compilation and execution:
 
-- **Generated Main**: `assetmin` creates a temporary `main.go` that imports all discovered component modules
-- **Single Invocation**: All components are instantiated and their asset methods called in one `go run` execution (~300ms)
-- **Hash-based Cache**: Results are keyed by the MD5 hash of all module Go files; cached results are reused if hashes match
-- **Type Safety**: Supports typed CSS builders (e.g., `css.New(Rule(...))`) and any dynamic Go expression in asset methods
-- **Better DX**: Compiler errors from invalid components are surfaced verbatim to developers
+- **Generated Main**: `assetmin` creates a temporary `main.go` that imports all discovered component modules.
+- **Single Invocation**: All components are instantiated and their asset methods called in one `go run` execution.
+- **Hash-based Cache**: Results are keyed by the MD5 hash of all module Go files; cached results are reused if hashes match.
+- **Type Safety**: Supports typed CSS builders (e.g., `github.com/tinywasm/css`) and any dynamic Go expression in asset methods. The generator calls `.String()` on the concrete types.
+- **Better DX**: Compiler errors from invalid components are surfaced verbatim to developers.
+
+## Internal API and Future Optimizations
+
+The internal API uses `extractSSRAssetsForModule(m, rootDir, modules, binCachePath)`. The `binCachePath` parameter is a reserved hook for future optimization (persistent binary) to further reduce extraction time below the cost of `go run`.
+
+## Performance Baseline
+
+The wall-time of the dev loop (edit -> extract) is approximately 300-500ms depending on the architecture, dominated by `go run` overhead. This is measured via `BenchmarkIncrementalChange` in `benchmark/benchmark_test.go`.
 
 ## Hot Reload
 
