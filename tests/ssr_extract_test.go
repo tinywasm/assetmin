@@ -17,7 +17,7 @@ func createSSRTestModule(t *testing.T, parentDir, modulePath, pkgName, body stri
 	}
 
 	// Write go.mod for the submodule
-	gomod := fmt.Sprintf("module %s\n\ngo 1.24\n\nrequire github.com/tinywasm/css v0.0.4\n", modulePath)
+	gomod := fmt.Sprintf("module %s\n\ngo 1.22\n", modulePath)
 	if err := os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte(gomod), 0644); err != nil {
 		t.Fatalf("Failed to write go.mod: %v", err)
 	}
@@ -49,7 +49,9 @@ func createSSRTestModule(t *testing.T, parentDir, modulePath, pkgName, body stri
 
 package %s
 
-import "github.com/tinywasm/css"
+// stylesheet is a local type with String() to satisfy the extractor.
+type stylesheet string
+func (s stylesheet) String() string { return string(s) }
 
 %s
 
@@ -77,8 +79,8 @@ func TestExtractSSRAssets(t *testing.T) {
 
 		moduleDir := createSSRTestModule(t, parentDir, "example.com/test/css", "css",
 			`type Css struct{}
-func (c *Css) RenderCSS() *css.Stylesheet {
-	return css.New(css.Raw(".cls{color:red;}"))
+func (c *Css) RenderCSS() stylesheet {
+	return stylesheet(".cls{color:red;}")
 }
 func (c *Css) RenderHTML() string { return "" }
 func (c *Css) RenderJS() string { return "" }
@@ -105,8 +107,8 @@ func (c *Css) IconSvg() map[string]string { return nil }
 
 		moduleDir := createSSRTestModule(t, parentDir, "example.com/test/js", "js",
 			`type Js struct{}
-func (j *Js) RenderCSS() *css.Stylesheet {
-	return nil
+func (j *Js) RenderCSS() stylesheet {
+	return ""
 }
 func (j *Js) RenderHTML() string { return "" }
 func (j *Js) RenderJS() string { return "console.log(\"hello\");" }
@@ -133,8 +135,8 @@ func (j *Js) IconSvg() map[string]string { return nil }
 
 		moduleDir := createSSRTestModule(t, parentDir, "example.com/test/icons", "icons",
 			`type Icons struct{}
-func (i *Icons) RenderCSS() *css.Stylesheet {
-	return nil
+func (i *Icons) RenderCSS() stylesheet {
+	return ""
 }
 func (i *Icons) RenderHTML() string { return "" }
 func (i *Icons) RenderJS() string { return "" }
@@ -171,8 +173,8 @@ func (i *Icons) IconSvg() map[string]string {
 
 		moduleDir := createSSRTestModule(t, parentDir, "example.com/test/search", "search",
 			`type Search struct{}
-func (s *Search) RenderCSS() *css.Stylesheet {
-	return nil
+func (s *Search) RenderCSS() stylesheet {
+	return ""
 }
 func (s *Search) RenderHTML() string { return "" }
 func (s *Search) RenderJS() string { return "" }
@@ -203,8 +205,8 @@ func (s *Search) IconSvg() map[string]string {
 
 		moduleDir := createSSRTestModule(t, parentDir, "example.com/test/ss", "ss",
 			`type Ss struct{}
-func (s *Ss) RenderCSS() *css.Stylesheet {
-	return css.New(css.Raw(".ss{color:red;}"))
+func (s *Ss) RenderCSS() stylesheet {
+	return stylesheet(".ss{color:red;}")
 }
 func (s *Ss) RenderHTML() string { return "" }
 func (s *Ss) RenderJS() string { return "" }

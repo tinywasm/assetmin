@@ -12,7 +12,7 @@ type mockRootProvider struct {
 }
 
 func (m *mockRootProvider) RootCSS() *css.Stylesheet {
-	return css.New(css.Raw(m.css))
+	return css.NewStylesheet(css.Raw(m.css))
 }
 
 func TestLoader_CssDefaultWins_NoAppRoot(t *testing.T) {

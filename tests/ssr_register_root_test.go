@@ -9,11 +9,11 @@ import (
 )
 
 type rootProvider struct{}
-func (p *rootProvider) RootCSS() *css.Stylesheet { return css.New(css.Raw(":root{--a:1;}")) }
+func (p *rootProvider) RootCSS() *css.Stylesheet { return css.NewStylesheet(css.Raw(":root{--a:1;}")) }
 
 type rootAndCssProvider struct{}
-func (p *rootAndCssProvider) RootCSS() *css.Stylesheet { return css.New(css.Raw(":root{--b:2;}")) }
-func (p *rootAndCssProvider) RenderCSS() *css.Stylesheet { return css.New(css.Raw(".comp{color:red;}")) }
+func (p *rootAndCssProvider) RootCSS() *css.Stylesheet { return css.NewStylesheet(css.Raw(":root{--b:2;}")) }
+func (p *rootAndCssProvider) RenderCSS() *css.Stylesheet { return css.NewStylesheet(css.Raw(".comp{color:red;}")) }
 
 func TestRegister_RootCssProvider_NonEmpty(t *testing.T) {
 	am := assetmin.NewAssetMin(&assetmin.Config{})
@@ -30,10 +30,10 @@ func TestRegister_RootCssProvider_NonEmpty(t *testing.T) {
 }
 
 type rootProviderA struct{}
-func (p *rootProviderA) RootCSS() *css.Stylesheet { return css.New(css.Raw(":root{--a:1;}")) }
+func (p *rootProviderA) RootCSS() *css.Stylesheet { return css.NewStylesheet(css.Raw(":root{--a:1;}")) }
 
 type rootProviderB struct{}
-func (p *rootProviderB) RootCSS() *css.Stylesheet { return css.New(css.Raw(":root{--b:1;}")) }
+func (p *rootProviderB) RootCSS() *css.Stylesheet { return css.NewStylesheet(css.Raw(":root{--b:1;}")) }
 
 func TestRegister_RootCssOverrides(t *testing.T) {
 	am := assetmin.NewAssetMin(&assetmin.Config{})

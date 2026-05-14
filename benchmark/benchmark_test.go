@@ -191,8 +191,8 @@ go 1.24
         b.Fatalf("Failed to create module directory: %v", err)
     }
 
-    // Write go.mod
-    modContent := fmt.Sprintf("module %s\n\ngo 1.24\n\nrequire github.com/tinywasm/css v0.0.4\n", modulePath)
+    // Write go.mod — sin dependencias externas, fixture auto-contenido
+    modContent := fmt.Sprintf("module %s\n\ngo 1.22\n", modulePath)
     if err := os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte(modContent), 0644); err != nil {
         b.Fatalf("Failed to write go.mod: %v", err)
     }
@@ -201,10 +201,11 @@ go 1.24
     writeSsr := func(val int) {
         content := fmt.Sprintf(`//go:build !wasm
 package button
-import "github.com/tinywasm/css"
+type stylesheet string
+func (s stylesheet) String() string { return string(s) }
 type Button struct{}
-func (b *Button) RenderCSS() *css.Stylesheet {
-	return css.New(css.Raw(".btn{color:rgb(%d,0,0);}"))
+func (b *Button) RenderCSS() stylesheet {
+	return stylesheet(".btn{color:rgb(%d,0,0);}")
 }
 func SSRInstance() *Button { return &Button{} }
 `, val)
