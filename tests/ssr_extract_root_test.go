@@ -21,12 +21,12 @@ go 1.24
 	moduleDir := createSSRTestModule(t, parentDir, "example.com/test/theme", "theme",
 		`type Theme struct{}
 
-func (t *Theme) RenderCSS() *css.Stylesheet {
-	return nil
+func (t *Theme) RenderCSS() stylesheet {
+	return ""
 }
 
-func (t *Theme) RootCSS() *css.Stylesheet {
-	return css.New(css.Raw(":root{--x:1;}"))
+func (t *Theme) RootCSS() stylesheet {
+	return stylesheet(":root{--x:1;}")
 }
 
 func (t *Theme) RenderHTML() string { return "" }
@@ -66,9 +66,7 @@ replace example.com/test/noroot => ./noroot
 
 	// Write noroot go.mod
 	noRootGomod := `module example.com/test/noroot
-go 1.24
-
-require github.com/tinywasm/css v0.0.4
+go 1.22
 `
 	if err := os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte(noRootGomod), 0644); err != nil {
 		t.Fatalf("Failed to write noroot go.mod: %v", err)
@@ -79,12 +77,13 @@ require github.com/tinywasm/css v0.0.4
 
 package noroot
 
-import "github.com/tinywasm/css"
+type stylesheet string
+func (s stylesheet) String() string { return string(s) }
 
 type Noroot struct{}
 
-func (n *Noroot) RenderCSS() *css.Stylesheet {
-	return css.New(css.Raw(".component { color: blue; }"))
+func (n *Noroot) RenderCSS() stylesheet {
+	return stylesheet(".component { color: blue; }")
 }
 
 func (n *Noroot) RenderHTML() string { return "" }
@@ -123,12 +122,12 @@ go 1.24
 	moduleDir := createSSRTestModule(t, parentDir, "example.com/test/combined", "combined",
 		`type Combined struct{}
 
-func (c *Combined) RootCSS() *css.Stylesheet {
-	return css.New(css.Raw(":root { --primary: blue; }"))
+func (c *Combined) RootCSS() stylesheet {
+	return stylesheet(":root { --primary: blue; }")
 }
 
-func (c *Combined) RenderCSS() *css.Stylesheet {
-	return css.New(css.Raw(".btn { background: var(--primary); }"))
+func (c *Combined) RenderCSS() stylesheet {
+	return stylesheet(".btn { background: var(--primary); }")
 }
 
 func (c *Combined) RenderHTML() string { return "<button></button>" }
@@ -166,12 +165,12 @@ go 1.24
 
 const embeddedCSS = ":root { --bg: #fff; }"
 
-func (e *Embed) RootCSS() *css.Stylesheet {
-	return css.New(css.Raw(embeddedCSS))
+func (e *Embed) RootCSS() stylesheet {
+	return stylesheet(embeddedCSS)
 }
 
-func (e *Embed) RenderCSS() *css.Stylesheet {
-	return nil
+func (e *Embed) RenderCSS() stylesheet {
+	return ""
 }
 
 func (e *Embed) RenderHTML() string { return "" }

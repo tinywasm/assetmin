@@ -10,7 +10,7 @@ type mockComponent struct {
 }
 
 func (m *mockComponent) RenderCSS() *css.Stylesheet {
-	return css.New(css.Raw(m.css))
+	return css.NewStylesheet(css.Raw(m.css))
 }
 
 func TestSSRRegistration(t *testing.T) {
