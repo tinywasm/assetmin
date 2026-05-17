@@ -11,7 +11,7 @@ import (
 func TestConcurrency(t *testing.T) {
 	t.Run("Concurrent JS and CSS processing", func(t *testing.T) {
 		env := setupTestEnv("concurrency", t)
-		env.AssetsHandler.FlushToDisk()
+		env.AssetsHandler.SetBuildOnDisk(true)
 		env.CreatePublicDir()
 
 		var wg sync.WaitGroup

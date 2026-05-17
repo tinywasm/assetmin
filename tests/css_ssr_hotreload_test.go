@@ -52,8 +52,7 @@ func TestCSSHotReload_SSRMode_UpdatesCorrectly(t *testing.T) {
 		OutputDir: outDir,
 		RootDir:   outDir,
 	})
-	am.EnableSSRMode()
-	am.SetSSRCompiler(func() error { return nil })
+	am.SetExternalSSRCompiler(func() error { return nil }, false)
 
 	moduleName := "tmp"
 	am.UpdateSSRModule(moduleName, initialCSS, "", "", nil)
@@ -80,8 +79,7 @@ func TestCSSHotReload_SSRMode_RefreshCalledOnReloadFailure(t *testing.T) {
 		OutputDir: outDir,
 		RootDir:   t.TempDir(),
 	})
-	am.EnableSSRMode()
-	am.SetSSRCompiler(func() error { return nil })
+	am.SetExternalSSRCompiler(func() error { return nil }, false)
 
 	initialCSS := ".card { background: red; }"
 	updatedCSS := ".card { background: blue; }"

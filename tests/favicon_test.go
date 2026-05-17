@@ -13,7 +13,7 @@ import (
 func TestFaviconProcessing(t *testing.T) {
 	t.Run("favicon_svg_processed_to_output", func(t *testing.T) {
 		env := setupTestEnv("favicon_svg_processed", t)
-		env.AssetsHandler.FlushToDisk()
+		env.AssetsHandler.SetBuildOnDisk(true)
 		env.CreatePublicDir()
 
 		faviconContent := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#007acc"/></svg>`
@@ -32,7 +32,7 @@ func TestFaviconProcessing(t *testing.T) {
 
 	t.Run("favicon_separate_from_sprite_icons", func(t *testing.T) {
 		env := setupTestEnv("favicon_separate", t)
-		env.AssetsHandler.FlushToDisk()
+		env.AssetsHandler.SetBuildOnDisk(true)
 		env.CreatePublicDir()
 
 		faviconPath := filepath.Join(env.BaseDir, "favicon.svg")

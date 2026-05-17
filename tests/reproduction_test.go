@@ -22,6 +22,7 @@ func TestInitialRegistration(t *testing.T) {
 	}
 
 	// Process in false
+	env.AssetsHandler.SetBuildOnDisk(false)
 	if err := env.AssetsHandler.NewFileEvent("script1.js", ".js", file1Path, "create"); err != nil {
 		t.Fatalf("Error processing file 1 create: %v", err)
 	}
@@ -35,7 +36,7 @@ func TestInitialRegistration(t *testing.T) {
 	}
 
 	// Switch to true and trigger a write
-	env.AssetsHandler.FlushToDisk()
+	env.AssetsHandler.SetBuildOnDisk(true)
 	if err := env.AssetsHandler.NewFileEvent("script1.js", ".js", file1Path, "write"); err != nil {
 		t.Fatalf("Error processing file 1 write: %v", err)
 	}

@@ -34,3 +34,19 @@ func FileWrite(pathFile string, data bytes.Buffer) error {
 
 	return nil
 }
+
+// FileWriteSafe writes the data to pathFile only if the file does not already exist.
+func FileWriteSafe(pathFile string, data bytes.Buffer) error {
+	const e = "FileWriteSafe "
+
+	// Check if the file already exists
+	if _, err := os.Stat(pathFile); err == nil {
+		// File already exists, skip writing
+		return nil
+	} else if !os.IsNotExist(err) {
+		// Some other error occurred
+		return errors.New(e + "while checking file existence " + err.Error())
+	}
+
+	return FileWrite(pathFile, data)
+}

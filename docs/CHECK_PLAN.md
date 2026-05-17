@@ -171,7 +171,8 @@ which determines the **filename** of the wasm artifact that `assetmin` embeds in
 state**, not disk I/O — assetmin does not read the wasm from disk.
 
 (`tinywasm/client` is renaming `SetBuildOnDisk(bool, bool)` → `UseDiskStorage()` +
-`UseMemoryStorage()` as part of this same refactor; see app PLAN §3c.)
+`UseMemoryStorage()` as part of this same refactor; see
+[client PLAN](../../client/docs/PLAN.md).)
 
 `FlushToDisk` is idempotent: subsequent external-mode restarts re-flush safely.
 
@@ -184,8 +185,8 @@ the `tinywasm/server` ripple (`OnExternalModeExecution` → `BeforeExternalServe
 - The internal-mode HTTP serving path ([assetmin/http.go](../http.go)) — it remains
   unchanged; it just becomes irrelevant once the external server takes over.
 - The `tinywasm/client` storage API rename (`SetBuildOnDisk` → `UseDiskStorage` /
-  `UseMemoryStorage`) lives in the app PLAN §3c — coordinated with this PR, not a
-  follow-up.
+  `UseMemoryStorage`) is owned by [client PLAN](../../client/docs/PLAN.md) —
+  coordinated with this PR, not a follow-up.
 
 ## Acceptance criteria
 
