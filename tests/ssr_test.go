@@ -58,17 +58,18 @@ func TestSSRModeDelegation(t *testing.T) {
 		}
 	})
 
-	// Test case: SSR mode - manually activated via SetExternalSSRCompiler.
+	// Test case: SSR mode - manually activated via EnableSSRMode and SetSSRCompiler.
 	// Expected: onSSRCompile is called for .go files.
 	t.Run("ssr mode delegates to external handler", func(t *testing.T) {
 		ssrCompileCalled = false
-		am.SetExternalSSRCompiler(func() error {
+		am.EnableSSRMode()
+		am.SetSSRCompiler(func() error {
 			ssrCompileCalled = true
 			return nil
-		}, false)
+		})
 
 		if !am.IsSSRMode() {
-			t.Fatal("expected SSR mode to be active after SetExternalSSRCompiler")
+			t.Fatal("expected SSR mode to be active after EnableSSRMode")
 		}
 
 		// .go file should trigger compilation
@@ -86,13 +87,13 @@ func TestSSRModeDelegation(t *testing.T) {
 		}
 	})
 
-	// Test case: SSR mode with buildOnDisk=true.
+	// Test case: SSR mode with diskMirrored=true.
 	// Expected:
 	// 1. Files are written to disk.
 	// 2. onSSRCompile is called.
-	// 3. Existing files are NOT overwritten on initialization (safe write).
+	// 3. Existing files ARE overwritten on initialization (NOT safe write - fixed in new design).
 	// 4. Files ARE updated on subsequent watcher events.
-	t.Run("ssr mode with buildOnDisk=true handles safe write and updates", func(t *testing.T) {
+	t.Run("ssr mode with diskMirrored=true handles overwrite and updates", func(t *testing.T) {
 		outputDir := filepath.Join(tmpDir, "ssr_disk_test")
 		ac :=  &assetmin.Config{
 			OutputDir: outputDir,
@@ -108,23 +109,25 @@ func TestSSRModeDelegation(t *testing.T) {
 			t.Fatal(err)
 		}
 		existingFile := filepath.Join(outputDir, "style.css")
-		existingContent := "/* preserved */"
+		existingContent := "/* stale */"
 		os.WriteFile(existingFile, []byte(existingContent), 0644)
 
 		ssrCompileCalled := false
-		am.SetExternalSSRCompiler(func() error {
+		am.EnableSSRMode()
+		am.SetSSRCompiler(func() error {
 			ssrCompileCalled = true
 			return nil
-		}, true)
+		})
 
-		if !ssrCompileCalled {
-			t.Error("expected onSSRCompile to be called immediately")
+		// FlushToDisk is now manual
+		if err := am.FlushToDisk(); err != nil {
+			t.Fatal(err)
 		}
 
-		// Verify safe write: style.css should NOT have been overwritten
+		// Verify overwrite (NEW BEHAVIOR): style.css should HAVE been overwritten
 		content, _ := os.ReadFile(existingFile)
-		if string(content) != existingContent {
-			t.Errorf("expected existing file to be preserved, got %s", string(content))
+		if string(content) == existingContent {
+			t.Errorf("expected existing file to be overwritten, but it was preserved")
 		}
 
 		// Verify other files WERE written (since they didn't exist)

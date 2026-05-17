@@ -194,7 +194,6 @@ func TestWorks(t *testing.T) {
 		defer setup.cleanup()
 
 		am := assetmin.NewAssetMin(setup.ac)
-		am.SetBuildOnDisk(false)
 
 		err := am.NewFileEvent("test.css", ".css", setup.createTempFile("test.css", "body{color:red}"), "create")
 		if err != nil {
@@ -213,7 +212,7 @@ func TestWorks(t *testing.T) {
 		defer setup.cleanup()
 
 		am := assetmin.NewAssetMin(setup.ac)
-		am.SetBuildOnDisk(true)
+		am.FlushToDisk()
 
 		err := am.NewFileEvent("test.css", ".css", setup.createTempFile("test.css", "body{color:red}"), "create")
 		if err != nil {

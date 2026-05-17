@@ -1,7 +1,6 @@
 package assetmin
 
 import (
-	"bytes"
 	"os"
 	"path"
 	"regexp"
@@ -23,7 +22,9 @@ type AssetMin struct {
 	faviconSvgHandler   *asset
 	indexHtmlHandler    *asset
 	min                 *minify.M
-	buildOnDisk         bool // Build assets to disk if true
+	ssrEnabled          bool            // Enable SSR event-handling mode
+	diskMirrored        bool            // Build assets to disk if true (after successful FlushToDisk)
+	allAssets           map[string]*asset // Registry of all assets keyed by outputPath
 	log                 func(message ...any)
 	onSSRCompile        func() error
 	registeredIconIDs   map[string]bool
@@ -56,6 +57,7 @@ func NewAssetMin(ac *Config) *AssetMin {
 		registeredIconIDs: make(map[string]bool),
 		scanner:           newImportScanner(),
 		minifyEnabled:     true,
+		allAssets:         make(map[string]*asset),
 	}
 
 	if c.AppName == "" {
@@ -73,6 +75,12 @@ func NewAssetMin(ac *Config) *AssetMin {
 	c.spriteSvgHandler = NewSvgHandler(ac, svgMainFileName)
 	c.faviconSvgHandler = NewFaviconSvgHandler(ac, svgFaviconFileName)
 
+	// Register the 5 main handlers
+	c.registerAsset(c.mainStyleCssHandler)
+	c.registerAsset(c.mainJsHandler)
+	c.registerAsset(c.spriteSvgHandler)
+	c.registerAsset(c.faviconSvgHandler)
+
 	// Set URL paths before creating the index handler that depends on them
 	c.mainStyleCssHandler.urlPath = path.Join("/", ac.AssetsURLPrefix, cssMainFileName)
 	c.mainJsHandler.urlPath = path.Join("/", ac.AssetsURLPrefix, jsMainFileName)
@@ -80,6 +88,7 @@ func NewAssetMin(ac *Config) *AssetMin {
 
 	c.indexHtmlHandler = NewHtmlHandler(ac, htmlMainFileName, c.mainStyleCssHandler.GetURLPath(), c.mainJsHandler.GetURLPath(), c.faviconSvgHandler.GetURLPath())
 	c.indexHtmlHandler.urlPath = "/" // Index is always at root
+	c.registerAsset(c.indexHtmlHandler)
 	c.min.Add("text/html", &html.Minifier{
 		KeepDocumentTags: true,
 		KeepEndTags:      true,
@@ -168,31 +177,8 @@ func (c *AssetMin) RefreshJSAssets() {
 	c.refreshAsset(".js")
 }
 
-// SetBuildOnDisk sets the work mode for AssetMin.
-// Deprecated: use SetExternalSSRCompiler instead to specify both callback and disk mode.
-func (c *AssetMin) SetBuildOnDisk(onDisk bool) {
-	c.SetExternalSSRCompiler(c.onSSRCompile, onDisk)
-}
-
-func (c *AssetMin) processAssetSafe(fh *asset) error {
-	// 1. Always regenerate cache
-	if err := fh.RegenerateCache(c.activeMinifier()); err != nil {
-		return err
-	}
-
-	// 2. Write to disk ONLY if enabled AND file doesn't exist
-	if c.buildOnDisk {
-		return FileWriteSafe(fh.outputPath, *bytes.NewBuffer(fh.GetCachedMinified()))
-	}
-	return nil
-}
-
-// BuildOnDisk returns true if assets are written to disk.
-func (c *AssetMin) BuildOnDisk() bool {
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.buildOnDisk
+func (c *AssetMin) registerAsset(a *asset) {
+	c.allAssets[a.outputPath] = a
 }
 
 // SetListModulesFn replaces the module discovery function.

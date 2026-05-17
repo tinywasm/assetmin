@@ -98,6 +98,13 @@ func (env *TestEnvironment) CreateThemeDir() *TestEnvironment {
 	return env
 }
 
+func (env *TestEnvironment) SetExternalSSRCompiler(fn func() error, onDisk bool) {
+	env.AssetsHandler.SetSSRCompiler(fn)
+	if onDisk {
+		env.AssetsHandler.FlushToDisk()
+	}
+}
+
 // CreatePublicDir creates the public directory if it doesn't exist
 func (env *TestEnvironment) CreatePublicDir() *TestEnvironment {
 	err := os.MkdirAll(env.PublicDir, 0755)

@@ -14,7 +14,7 @@ func TestAssetScenario(t *testing.T) {
 		// si el archivo no existe se considerara un error, la libreria debe ser capas de crear el directorio de trabajo web/public
 
 		env := setupTestEnv("uc01_empty_directory", t)
-		env.AssetsHandler.SetBuildOnDisk(true)
+		env.AssetsHandler.FlushToDisk()
 		// 1. Create JS file and verify output
 		jsFileName := "script1.js"
 		jsFilePath := filepath.Join(env.BaseDir, jsFileName)
@@ -51,7 +51,7 @@ func TestAssetScenario(t *testing.T) {
 		// Se espera que el contenido se actualice correctamente (sin duplicados) y
 		// que el contenido sea eliminado cuando se elimina el archivo
 		env := setupTestEnv("uc02_crud_operations", t)
-		env.AssetsHandler.SetBuildOnDisk(true)
+		env.AssetsHandler.FlushToDisk()
 		env.AssetsHandler.GetSSRClientInitJS = func() (string, error) {
 			return "console.log('init');", nil
 		}
@@ -74,7 +74,7 @@ func TestAssetScenario(t *testing.T) {
 		// archivos JS son escritos simultáneamente
 		// Se espera que todos los contenidos se encuentren en web/public/main.js
 		env := setupTestEnv("uc03_concurrent_writes", t)
-		env.AssetsHandler.SetBuildOnDisk(true)
+		env.AssetsHandler.FlushToDisk()
 		env.TestConcurrentFileProcessing(".js", 5)
 		env.CleanDirectory()
 	})
@@ -84,7 +84,7 @@ func TestAssetScenario(t *testing.T) {
 		// archivos CSS son escritos simultáneamente
 		// Se espera que todos los contenidos se encuentren en web/public/main.css
 		env := setupTestEnv("uc04_concurrent_writes_css", t)
-		env.AssetsHandler.SetBuildOnDisk(true)
+		env.AssetsHandler.FlushToDisk()
 		env.TestConcurrentFileProcessing(".css", 5)
 		env.CleanDirectory()
 	})
@@ -111,7 +111,6 @@ func (env *TestEnvironment) TestEventBasedCompilation(fileExtension string) {
 	}
 
 	// --- false Behavior ---
-	env.AssetsHandler.SetBuildOnDisk(false)
 	if err := env.AssetsHandler.NewFileEvent(fileName, fileExtension, filePath, "create"); err != nil {
 		env.t.Fatalf("Error processing creation event: %v", err)
 	}
@@ -123,7 +122,7 @@ func (env *TestEnvironment) TestEventBasedCompilation(fileExtension string) {
 	}
 
 	// --- true Behavior ---
-	env.AssetsHandler.SetBuildOnDisk(true)
+	env.AssetsHandler.FlushToDisk()
 	if err := env.AssetsHandler.NewFileEvent(fileName, fileExtension, filePath, "write"); err != nil {
 		env.t.Fatalf("Error processing write event: %v", err)
 	}
