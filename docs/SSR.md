@@ -185,6 +185,9 @@ Components implementing `RootCSS() *css.Stylesheet` route to the `open` slot und
 | `RegisterComponents(providers ...any)` | Register live struct instances as asset providers |
 | `UpdateSSRModule(name, css, js, html, icons)` | Manually inject content into the `middle` slot |
 | `UpdateSSRModuleInSlot(name, css, js, html, icons, slot)` | Manually inject into a specific slot (`open`/`middle`/`close`) |
+| `EnableSSRMode()` | Activate SSR event branch without requiring a compiler |
+| `SetSSRCompiler(fn func() error)` | Register (or clear) the `.go` change compiler callback |
+| `FlushToDisk() error` | Write all in-memory assets to disk and enter disk-mirrored mode |
 
 ## Testing Recommendations
 

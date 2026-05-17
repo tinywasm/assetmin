@@ -1,7 +1,6 @@
 package assetmin
 
 import (
-	"bytes"
 	"os"
 	"path"
 	"regexp"
@@ -23,7 +22,9 @@ type AssetMin struct {
 	faviconSvgHandler   *asset
 	indexHtmlHandler    *asset
 	min                 *minify.M
-	buildOnDisk         bool // Build assets to disk if true
+	ssrEnabled          bool              // SSR branch activation flag
+	diskMirrored        bool              // If true, assets are being mirrored to disk
+	allAssets           map[string]*asset // Keyed by outputPath - dedup
 	log                 func(message ...any)
 	onSSRCompile        func() error
 	registeredIconIDs   map[string]bool
@@ -62,6 +63,8 @@ func NewAssetMin(ac *Config) *AssetMin {
 		c.AppName = "MyApp"
 	}
 
+	c.allAssets = make(map[string]*asset)
+
 	jsMainFileName := "script.js"
 	cssMainFileName := "style.css"
 	svgMainFileName := "icons.svg"
@@ -92,6 +95,14 @@ func NewAssetMin(ac *Config) *AssetMin {
 	c.min.AddFunc("image/svg+xml", svg.Minify)
 
 	c.mainJsHandler.initCode = c.startCodeJS
+
+	// Register main assets
+	for _, a := range []*asset{
+		c.mainStyleCssHandler, c.mainJsHandler,
+		c.spriteSvgHandler, c.faviconSvgHandler, c.indexHtmlHandler,
+	} {
+		c.allAssets[a.outputPath] = a
+	}
 
 	// Automatic Sprite Injection:
 	// Link the Sprite Handler to the HTML Handler so the sprite is injected dynamically
@@ -166,33 +177,6 @@ func (c *AssetMin) refreshAsset(extension string) {
 // Call this when the WASM binary changes to ensure they are up to date.
 func (c *AssetMin) RefreshJSAssets() {
 	c.refreshAsset(".js")
-}
-
-// SetBuildOnDisk sets the work mode for AssetMin.
-// Deprecated: use SetExternalSSRCompiler instead to specify both callback and disk mode.
-func (c *AssetMin) SetBuildOnDisk(onDisk bool) {
-	c.SetExternalSSRCompiler(c.onSSRCompile, onDisk)
-}
-
-func (c *AssetMin) processAssetSafe(fh *asset) error {
-	// 1. Always regenerate cache
-	if err := fh.RegenerateCache(c.activeMinifier()); err != nil {
-		return err
-	}
-
-	// 2. Write to disk ONLY if enabled AND file doesn't exist
-	if c.buildOnDisk {
-		return FileWriteSafe(fh.outputPath, *bytes.NewBuffer(fh.GetCachedMinified()))
-	}
-	return nil
-}
-
-// BuildOnDisk returns true if assets are written to disk.
-func (c *AssetMin) BuildOnDisk() bool {
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.buildOnDisk
 }
 
 // SetListModulesFn replaces the module discovery function.

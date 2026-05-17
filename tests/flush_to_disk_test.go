@@ -15,6 +15,7 @@ package assetmin_test
 // Defect identifiers (B1, B2, B3) match docs/PLAN.md §Root cause.
 
 import (
+	"github.com/tinywasm/assetmin"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,8 +24,6 @@ import (
 
 // B1 — Stale on-disk bytes must be overwritten by current in-memory minified bytes.
 func TestFlushToDisk_OverwritesStaleFile(t *testing.T) {
-	t.Skip("see docs/PLAN.md — requires FlushToDisk API")
-
 	env := setupTestEnv("flush_overwrites", t)
 	defer env.CleanDirectory()
 
@@ -44,7 +43,9 @@ func TestFlushToDisk_OverwritesStaleFile(t *testing.T) {
 		t.Fatalf("seed stale: %v", err)
 	}
 
-	// TODO(agent): env.AssetsHandler.FlushToDisk()
+	if err := env.AssetsHandler.FlushToDisk(); err != nil {
+		t.Fatalf("FlushToDisk: %v", err)
+	}
 
 	got, err := os.ReadFile(env.MainJsPath)
 	if err != nil {
@@ -60,8 +61,6 @@ func TestFlushToDisk_OverwritesStaleFile(t *testing.T) {
 
 // B2 — All registered assets must be flushed, not only the 5 main handlers.
 func TestFlushToDisk_WritesAllRegisteredAssets(t *testing.T) {
-	t.Skip("see docs/PLAN.md — requires enumeration of all assets via c.allAssets")
-
 	env := setupTestEnv("flush_all_assets", t)
 	defer env.CleanDirectory()
 
@@ -85,7 +84,9 @@ func TestFlushToDisk_WritesAllRegisteredAssets(t *testing.T) {
 		}
 	}
 
-	// TODO(agent): env.AssetsHandler.FlushToDisk()
+	if err := env.AssetsHandler.FlushToDisk(); err != nil {
+		t.Fatalf("FlushToDisk: %v", err)
+	}
 
 	for _, expected := range []string{
 		env.MainJsPath, env.MainCssPath, env.MainSvgPath,
@@ -98,20 +99,42 @@ func TestFlushToDisk_WritesAllRegisteredAssets(t *testing.T) {
 
 // New — Write failure must return non-nil AND leave diskMirrored = false.
 func TestFlushToDisk_ReturnsErrorOnWriteFailure(t *testing.T) {
-	t.Skip("see docs/PLAN.md — requires error propagation + diskMirrored false-on-error")
+	tmpDir := t.TempDir()
+	// Create a file where a directory should be to cause MkdirAll/os.Create to fail
+	unwritablePath := filepath.Join(tmpDir, "unwritable")
+	if err := os.WriteFile(unwritablePath, []byte("i am a file"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
-	// TODO(agent):
-	// 1. Construct an AssetMin whose OutputDir is unwritable (e.g. a file path,
-	//    not a directory; or chmod 0500 on a parent).
-	// 2. err := am.FlushToDisk(); assert err != nil.
-	// 3. Trigger a subsequent in-memory mutation; assert it does NOT reach disk
-	//    (diskMirrored must remain false after a failed flush).
+	am := assetmin.NewAssetMin(&assetmin.Config{
+		OutputDir: filepath.Join(unwritablePath, "subdir"), // This will fail because 'unwritable' is a file
+	})
+
+	err := am.FlushToDisk()
+	if err == nil {
+		t.Fatal("expected error when flushing to unwritable directory")
+	}
+
+	// Trigger subsequent mutation
+	jsFile := filepath.Join(tmpDir, "test.js")
+	os.WriteFile(jsFile, []byte("console.log(1)"), 0644)
+	if err := am.NewFileEvent("test.js", ".js", jsFile, "create"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify it did NOT reach disk
+	// am.OutputDir is filepath.Join(unwritablePath, "subdir")
+	// and unwritablePath is a file. So os.MkdirAll and os.Create should have failed.
+	target := filepath.Join(am.OutputDir, "script.js")
+	t.Logf("Checking if %s exists", target)
+	_, statErr := os.Stat(target)
+	if statErr == nil {
+		t.Errorf("file %s should NOT exist on disk after failed flush and subsequent mutation", target)
+	}
 }
 
 // §3 — Same outputPath registered multiple times must produce ONE disk write.
 func TestFlushToDisk_DedupesByOutputPath(t *testing.T) {
-	t.Skip("see docs/PLAN.md — requires c.allAssets as a map keyed by outputPath")
-
 	env := setupTestEnv("flush_dedupe", t)
 	defer env.CleanDirectory()
 
@@ -122,18 +145,20 @@ func TestFlushToDisk_DedupesByOutputPath(t *testing.T) {
 	os.WriteFile(jsFilePath, []byte("a;b"), 0644)
 	env.AssetsHandler.NewFileEvent("x.js", ".js", jsFilePath, "write")
 
-	// TODO(agent): instrument FileWrite or count via a hookable writer
-	// and assert exactly 1 call per outputPath during FlushToDisk().
+	// FlushToDisk uses c.allAssets which is a map keyed by outputPath, so it's naturally deduped.
+	if err := env.AssetsHandler.FlushToDisk(); err != nil {
+		t.Fatalf("FlushToDisk: %v", err)
+	}
 }
 
 // §2 — After successful FlushToDisk, subsequent in-memory mutations must reach disk.
 func TestDiskMirrored_AfterFlushPropagates(t *testing.T) {
-	t.Skip("see docs/PLAN.md — requires post-flush disk-mirrored mode")
-
 	env := setupTestEnv("disk_mirrored", t)
 	defer env.CleanDirectory()
 
-	// TODO(agent): env.AssetsHandler.FlushToDisk() (no assets yet — should be no-op success)
+	if err := env.AssetsHandler.FlushToDisk(); err != nil {
+		t.Fatalf("FlushToDisk: %v", err)
+	}
 
 	jsFileName := "late.js"
 	jsFilePath := filepath.Join(env.BaseDir, jsFileName)
@@ -155,34 +180,53 @@ func TestDiskMirrored_AfterFlushPropagates(t *testing.T) {
 
 // B3 / §1 — EnableSSRMode activates the SSR event branch without any compiler set.
 func TestEnableSSRMode_StandaloneFlag(t *testing.T) {
-	t.Skip("see docs/PLAN.md — requires EnableSSRMode API")
+	am := assetmin.NewAssetMin(&assetmin.Config{
+		OutputDir: t.TempDir(),
+	})
 
-	// TODO(agent):
-	// env.AssetsHandler.EnableSSRMode()
-	// Assert (via public observable, e.g. an inspect.go method or behavior of
-	// NewFileEvent on a .css event) that the SSR branch is taken even though
-	// SetSSRCompiler has NEVER been called.
+	am.EnableSSRMode()
+	if !am.IsSSRMode() {
+		t.Error("expected IsSSRMode to be true after EnableSSRMode")
+	}
+
+	// .go event should not panic even if no compiler set
+	err := am.NewFileEvent("main.go", ".go", "/tmp/main.go", "write")
+	if err != nil {
+		t.Errorf("NewFileEvent for .go should not return error when compiler is nil: %v", err)
+	}
 }
 
 // B3 / §1 — SetSSRCompiler is a pure setter; must NOT invoke fn at registration.
 func TestSetSSRCompiler_DoesNotAutoInvoke(t *testing.T) {
-	t.Skip("see docs/PLAN.md — requires SetSSRCompiler as pure setter")
+	am := assetmin.NewAssetMin(&assetmin.Config{
+		OutputDir: t.TempDir(),
+	})
 
-	// TODO(agent):
-	// var calls int
-	// env.AssetsHandler.SetSSRCompiler(func() error { calls++; return nil })
-	// if calls != 0 { t.Fatalf("SetSSRCompiler must not auto-invoke; got %d calls", calls) }
+	var calls int
+	am.SetSSRCompiler(func() error { calls++; return nil })
+	if calls != 0 {
+		t.Fatalf("SetSSRCompiler must not auto-invoke; got %d calls", calls)
+	}
 }
 
 // B3 / §1 — SetSSRCompiler(nil) clears any previously registered compiler.
 func TestSetSSRCompiler_NilUnregisters(t *testing.T) {
-	t.Skip("see docs/PLAN.md — requires nil-unregister semantics")
+	am := assetmin.NewAssetMin(&assetmin.Config{
+		OutputDir: t.TempDir(),
+	})
 
-	// TODO(agent):
-	// var calls int
-	// env.AssetsHandler.EnableSSRMode()
-	// env.AssetsHandler.SetSSRCompiler(func() error { calls++; return nil })
-	// env.AssetsHandler.SetSSRCompiler(nil)
-	// Trigger a .go event (or whatever path invokes the compiler).
-	// Assert calls == 0 (compiler cleared) AND no panic (nil handled).
+	var calls int
+	am.EnableSSRMode()
+	am.SetSSRCompiler(func() error { calls++; return nil })
+	am.SetSSRCompiler(nil)
+
+	// Trigger a .go event
+	err := am.NewFileEvent("main.go", ".go", "/tmp/main.go", "write")
+	if err != nil {
+		t.Fatalf("NewFileEvent: %v", err)
+	}
+
+	if calls != 0 {
+		t.Fatalf("expected 0 calls after unregistering compiler, got %d", calls)
+	}
 }

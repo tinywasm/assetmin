@@ -13,10 +13,11 @@ func TestSSRMode_GoTriggersCompile(t *testing.T) {
 	am := assetmin.NewAssetMin(&assetmin.Config{
 		OutputDir: t.TempDir(),
 	})
-	am.SetExternalSSRCompiler(func() error {
+	am.EnableSSRMode()
+	am.SetSSRCompiler(func() error {
 		compiled = true
 		return nil
-	}, false)
+	})
 
 	err := am.NewFileEvent("ssr.go", ".go", "/path/ssr.go", "write")
 	if err != nil {
@@ -35,10 +36,11 @@ func TestSSRMode_EmbeddedAssetHotReload(t *testing.T) {
 		OutputDir: t.TempDir(),
 		RootDir:   t.TempDir(),
 	})
-	am.SetExternalSSRCompiler(func() error {
+	am.EnableSSRMode()
+	am.SetSSRCompiler(func() error {
 		compiled = true
 		return nil
-	}, false)
+	})
 
 	// Create a dummy module with go.mod, ssr.go and style.css
 	cssPath := filepath.Join(tmpDir, "style.css")

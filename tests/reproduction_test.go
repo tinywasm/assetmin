@@ -22,7 +22,6 @@ func TestInitialRegistration(t *testing.T) {
 	}
 
 	// Process in false
-	env.AssetsHandler.SetBuildOnDisk(false)
 	if err := env.AssetsHandler.NewFileEvent("script1.js", ".js", file1Path, "create"); err != nil {
 		t.Fatalf("Error processing file 1 create: %v", err)
 	}
@@ -32,11 +31,13 @@ func TestInitialRegistration(t *testing.T) {
 
 	// Verify no file is written
 	if _, err := os.Stat(env.MainJsPath); !os.IsNotExist(err) {
-		t.Errorf("File should not be written in false, err: %v", err)
+		t.Errorf("File should not be written before FlushToDisk, err: %v", err)
 	}
 
 	// Switch to true and trigger a write
-	env.AssetsHandler.SetBuildOnDisk(true)
+	if err := env.AssetsHandler.FlushToDisk(); err != nil {
+		t.Fatalf("FlushToDisk: %v", err)
+	}
 	if err := env.AssetsHandler.NewFileEvent("script1.js", ".js", file1Path, "write"); err != nil {
 		t.Fatalf("Error processing file 1 write: %v", err)
 	}

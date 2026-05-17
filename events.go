@@ -54,7 +54,10 @@ func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) err
 		if extension == ".go" {
 			fn := c.onSSRCompile
 			c.mu.Unlock()
-			return fn()
+			if fn != nil {
+				return fn()
+			}
+			return nil
 		}
 
 		// Hot-reload embedded files without rebuilding WASM
@@ -123,7 +126,7 @@ func (c *AssetMin) processAsset(fh *asset) error {
 	}
 
 	// 2. Write to disk only if enabled
-	if c.buildOnDisk {
+	if c.diskMirrored {
 		return FileWrite(fh.outputPath, *bytes.NewBuffer(fh.GetCachedMinified()))
 	}
 	return nil

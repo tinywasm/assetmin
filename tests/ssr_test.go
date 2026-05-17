@@ -58,17 +58,18 @@ func TestSSRModeDelegation(t *testing.T) {
 		}
 	})
 
-	// Test case: SSR mode - manually activated via SetExternalSSRCompiler.
+	// Test case: SSR mode - manually activated via EnableSSRMode.
 	// Expected: onSSRCompile is called for .go files.
 	t.Run("ssr mode delegates to external handler", func(t *testing.T) {
 		ssrCompileCalled = false
-		am.SetExternalSSRCompiler(func() error {
+		am.EnableSSRMode()
+		am.SetSSRCompiler(func() error {
 			ssrCompileCalled = true
 			return nil
-		}, false)
+		})
 
 		if !am.IsSSRMode() {
-			t.Fatal("expected SSR mode to be active after SetExternalSSRCompiler")
+			t.Fatal("expected SSR mode to be active after EnableSSRMode")
 		}
 
 		// .go file should trigger compilation
@@ -86,15 +87,15 @@ func TestSSRModeDelegation(t *testing.T) {
 		}
 	})
 
-	// Test case: SSR mode with buildOnDisk=true.
+	// Test case: SSR mode with FlushToDisk().
 	// Expected:
 	// 1. Files are written to disk.
-	// 2. onSSRCompile is called.
-	// 3. Existing files are NOT overwritten on initialization (safe write).
+	// 2. onSSRCompile is NOT called automatically.
+	// 3. Existing files ARE overwritten on FlushToDisk (B1 fix).
 	// 4. Files ARE updated on subsequent watcher events.
-	t.Run("ssr mode with buildOnDisk=true handles safe write and updates", func(t *testing.T) {
+	t.Run("ssr mode with FlushToDisk() handles overwrite and updates", func(t *testing.T) {
 		outputDir := filepath.Join(tmpDir, "ssr_disk_test")
-		ac :=  &assetmin.Config{
+		ac := &assetmin.Config{
 			OutputDir: outputDir,
 			GetSSRClientInitJS: func() (string, error) {
 				return "console.log('init');", nil
@@ -112,22 +113,27 @@ func TestSSRModeDelegation(t *testing.T) {
 		os.WriteFile(existingFile, []byte(existingContent), 0644)
 
 		ssrCompileCalled := false
-		am.SetExternalSSRCompiler(func() error {
+		am.EnableSSRMode()
+		am.SetSSRCompiler(func() error {
 			ssrCompileCalled = true
 			return nil
-		}, true)
+		})
 
-		if !ssrCompileCalled {
-			t.Error("expected onSSRCompile to be called immediately")
+		if ssrCompileCalled {
+			t.Error("expected onSSRCompile NOT to be called immediately")
 		}
 
-		// Verify safe write: style.css should NOT have been overwritten
+		if err := am.FlushToDisk(); err != nil {
+			t.Fatalf("FlushToDisk: %v", err)
+		}
+
+		// Verify overwrite: style.css should HAVE BEEN overwritten (fix B1)
 		content, _ := os.ReadFile(existingFile)
-		if string(content) != existingContent {
-			t.Errorf("expected existing file to be preserved, got %s", string(content))
+		if string(content) == existingContent {
+			t.Errorf("expected existing file to be overwritten")
 		}
 
-		// Verify other files WERE written (since they didn't exist)
+		// Verify other files WERE written
 		jsFile := filepath.Join(outputDir, "script.js")
 		if _, err := os.Stat(jsFile); os.IsNotExist(err) {
 			t.Error("expected script.js to be created")
