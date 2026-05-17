@@ -69,7 +69,7 @@ func TestMinifyToggle_DiskRewrite(t *testing.T) {
 	am := assetmin.NewAssetMin(&assetmin.Config{
 		OutputDir: outDir,
 	})
-	am.SetExternalSSRCompiler(nil, true) // Enable buildOnDisk
+	am.FlushToDisk() // Enable diskMirrored
 
 	cssContent := "  .foo  {  color:  red;  }  "
 	cssFile := filepath.Join(tmpDir, "style.css")

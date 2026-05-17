@@ -41,7 +41,7 @@ WebAssembly.instantiateStreaming(fetch("main.wasm"), tinyGoRuntime.importObject)
 
 	// Setup test environment with mock TinyWasm handler
 	env := setupTestEnv("js_event_flow", t, mockTinyWasmHandler)
-	env.AssetsHandler.SetBuildOnDisk(true)
+	env.AssetsHandler.FlushToDisk()
 	//defer env.CleanDirectory()
 
 	// Prepare three distinct JS files in different directories

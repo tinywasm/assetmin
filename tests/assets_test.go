@@ -14,7 +14,9 @@ func TestAssetScenario(t *testing.T) {
 		// si el archivo no existe se considerara un error, la libreria debe ser capas de crear el directorio de trabajo web/public
 
 		env := setupTestEnv("uc01_empty_directory", t)
-		env.AssetsHandler.SetBuildOnDisk(true)
+		if err := env.AssetsHandler.FlushToDisk(); err != nil {
+			t.Fatalf("FlushToDisk: %v", err)
+		}
 		// 1. Create JS file and verify output
 		jsFileName := "script1.js"
 		jsFilePath := filepath.Join(env.BaseDir, jsFileName)
@@ -51,7 +53,9 @@ func TestAssetScenario(t *testing.T) {
 		// Se espera que el contenido se actualice correctamente (sin duplicados) y
 		// que el contenido sea eliminado cuando se elimina el archivo
 		env := setupTestEnv("uc02_crud_operations", t)
-		env.AssetsHandler.SetBuildOnDisk(true)
+		if err := env.AssetsHandler.FlushToDisk(); err != nil {
+			t.Fatalf("FlushToDisk: %v", err)
+		}
 		env.AssetsHandler.GetSSRClientInitJS = func() (string, error) {
 			return "console.log('init');", nil
 		}
@@ -74,7 +78,9 @@ func TestAssetScenario(t *testing.T) {
 		// archivos JS son escritos simultáneamente
 		// Se espera que todos los contenidos se encuentren en web/public/main.js
 		env := setupTestEnv("uc03_concurrent_writes", t)
-		env.AssetsHandler.SetBuildOnDisk(true)
+		if err := env.AssetsHandler.FlushToDisk(); err != nil {
+			t.Fatalf("FlushToDisk: %v", err)
+		}
 		env.TestConcurrentFileProcessing(".js", 5)
 		env.CleanDirectory()
 	})
@@ -84,7 +90,9 @@ func TestAssetScenario(t *testing.T) {
 		// archivos CSS son escritos simultáneamente
 		// Se espera que todos los contenidos se encuentren en web/public/main.css
 		env := setupTestEnv("uc04_concurrent_writes_css", t)
-		env.AssetsHandler.SetBuildOnDisk(true)
+		if err := env.AssetsHandler.FlushToDisk(); err != nil {
+			t.Fatalf("FlushToDisk: %v", err)
+		}
 		env.TestConcurrentFileProcessing(".css", 5)
 		env.CleanDirectory()
 	})
@@ -111,7 +119,6 @@ func (env *TestEnvironment) TestEventBasedCompilation(fileExtension string) {
 	}
 
 	// --- false Behavior ---
-	env.AssetsHandler.SetBuildOnDisk(false)
 	if err := env.AssetsHandler.NewFileEvent(fileName, fileExtension, filePath, "create"); err != nil {
 		env.t.Fatalf("Error processing creation event: %v", err)
 	}
@@ -119,18 +126,20 @@ func (env *TestEnvironment) TestEventBasedCompilation(fileExtension string) {
 	// Verify file is NOT written to disk in false
 	_, err := os.Stat(mainPath)
 	if !os.IsNotExist(err) {
-		env.t.Errorf("File should not be written when BuildOnDisk is false")
+		env.t.Errorf("File should not be written when FlushToDisk has not been called")
 	}
 
 	// --- true Behavior ---
-	env.AssetsHandler.SetBuildOnDisk(true)
+	if err := env.AssetsHandler.FlushToDisk(); err != nil {
+		env.t.Fatalf("FlushToDisk: %v", err)
+	}
 	if err := env.AssetsHandler.NewFileEvent(fileName, fileExtension, filePath, "write"); err != nil {
 		env.t.Fatalf("Error processing write event: %v", err)
 	}
 
 	// Verify file IS written to disk in true
 	if _, err := os.Stat(mainPath); os.IsNotExist(err) {
-		env.t.Errorf("File should be written when BuildOnDisk is true")
+		env.t.Errorf("File should be written when FlushToDisk was successful")
 	}
 	content, err := os.ReadFile(mainPath)
 	if err != nil {

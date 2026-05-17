@@ -189,12 +189,11 @@ func TestSpriteInjectedInHTML(t *testing.T) {
 }
 
 func TestWorks(t *testing.T) {
-	t.Run("false does not write to disk", func(t *testing.T) {
+	t.Run("default does not write to disk", func(t *testing.T) {
 		setup := newTestSetup(t)
 		defer setup.cleanup()
 
 		am := assetmin.NewAssetMin(setup.ac)
-		am.SetBuildOnDisk(false)
 
 		err := am.NewFileEvent("test.css", ".css", setup.createTempFile("test.css", "body{color:red}"), "create")
 		if err != nil {
@@ -204,16 +203,18 @@ func TestWorks(t *testing.T) {
 		// Check file does NOT exist
 		_, err = os.Stat(filepath.Join(setup.outputDir, "style.css"))
 		if !os.IsNotExist(err) {
-			t.Errorf("File style.css should NOT exist when BuildOnDisk is false")
+			t.Errorf("File style.css should NOT exist when FlushToDisk has not been called")
 		}
 	})
 
-	t.Run("true writes to disk", func(t *testing.T) {
+	t.Run("FlushToDisk enables disk mirroring", func(t *testing.T) {
 		setup := newTestSetup(t)
 		defer setup.cleanup()
 
 		am := assetmin.NewAssetMin(setup.ac)
-		am.SetBuildOnDisk(true)
+		if err := am.FlushToDisk(); err != nil {
+			t.Fatalf("FlushToDisk: %v", err)
+		}
 
 		err := am.NewFileEvent("test.css", ".css", setup.createTempFile("test.css", "body{color:red}"), "create")
 		if err != nil {
