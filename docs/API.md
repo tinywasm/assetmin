@@ -52,10 +52,11 @@ AssetMin supports two work modes:
 - No disk writes occur.
 - Changes are immediately available via HTTP.
 
-### DiskMode
-- Assets are written to disk AND cached in memory.
-- HTTP requests are still served from cache for performance.
-- switching to `DiskMode` triggers an immediate write of all cached assets to disk.
+### DiskMirroredMode
+- Activated by calling `FlushToDisk()`.
+- All in-memory assets are written to disk (overwrites stale files).
+- After a successful flush, every subsequent `NewFileEvent` also writes to disk automatically.
+- HTTP requests continue to be served from the in-memory cache.
 
 ## Public API
 
@@ -73,6 +74,24 @@ Processes a file system event and updates the corresponding asset bundle.
 - `extension`: File extension (e.g., ".css", ".js", ".svg", ".html").
 - `filePath`: Full path to the source file.
 - `event`: Event type - "create", "write", "remove".
+
+### Disk Flush & SSR Mode
+
+#### EnableSSRMode()
+Activates the SSR event-handling branch unconditionally. Call once at startup so that `.css` file events route through the SSR slot logic. Does NOT register a compiler — safe to call with no `SetSSRCompiler`.
+
+#### SetSSRCompiler(fn func() error)
+Registers a Go compiler callback that is invoked on `.go` file changes. Pure setter — does NOT call `fn` at registration time. Pass `nil` to unregister.
+
+#### FlushToDisk() error
+Snapshots all registered assets and writes them to disk (overwrites existing files). Sets the internal `diskMirrored` flag only on full success; subsequent `NewFileEvent` calls will also write to disk. Returns the first write error encountered.
+
+```go
+// Typical usage before starting an external server:
+if err := am.FlushToDisk(); err != nil {
+    return fmt.Errorf("assetmin flush: %w", err)
+}
+```
 
 ### SSR & Module Loading
 
