@@ -117,12 +117,12 @@ func TestModuleSubpackagesUsed(t *testing.T) {
 			want: []string{"button", "modal"},
 		},
 		{
-			name:       "deep subpackage skipped",
+			name:       "deep subpackage supported",
 			modulePath: "github.com/user/comp",
 			importedPaths: map[string]bool{
 				"github.com/user/comp/a/b": true,
 			},
-			want: nil,
+			want: []string{"a/b"},
 		},
 	}
 

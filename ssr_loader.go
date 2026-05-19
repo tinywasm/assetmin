@@ -214,7 +214,7 @@ func isRootDir(dir, rootDir string) bool {
 func (c *AssetMin) ReloadSSRModule(moduleDir string) error {
 	c.mu.Lock()
 
-	assets, err := ExtractSSRAssets(moduleDir)
+	assets, err := c.ExtractSSRAssetsWithContext(moduleDir)
 	if err != nil {
 		c.mu.Unlock()
 		return err

@@ -3,6 +3,7 @@ package assetmin
 import (
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sync"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/tdewolff/minify/v2/html"
 	"github.com/tdewolff/minify/v2/js"
 	"github.com/tdewolff/minify/v2/svg"
+	"github.com/tinywasm/fmt"
 )
 
 type AssetMin struct {
@@ -185,4 +187,92 @@ func (c *AssetMin) SetListModulesFn(fn func(rootDir string) ([]string, error)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.listModulesFn = fn
+}
+
+// readGoModulePath extracts the module path from go.mod (e.g., "example.com/demo")
+func readGoModulePath(rootDir string) (string, error) {
+	gomodPath := filepath.Join(rootDir, "go.mod")
+	content, err := os.ReadFile(gomodPath)
+	if err != nil {
+		return "", err
+	}
+
+	lines := string(content)
+	newlineIdx := findIndex(lines, "\n")
+	if newlineIdx < 0 {
+		newlineIdx = len(lines)
+	}
+	firstLine := lines[:newlineIdx]
+
+	if len(firstLine) > 7 && firstLine[:7] == "module " {
+		return firstLine[7:], nil
+	}
+	return "", fmt.Err("no module line in go.mod")
+}
+
+func findIndex(s string, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
+// ExtractSSRAssetsWithContext uses the AssetMin's listModulesFn (if set) when discovering modules.
+// This allows tests to mock module discovery without running actual go list commands.
+func (c *AssetMin) ExtractSSRAssetsWithContext(moduleDir string) (*SSRAssets, error) {
+	rootDir, err := findProjectRoot(moduleDir)
+	if err != nil {
+		return nil, fmt.Err("failed to find project root from", moduleDir, err)
+	}
+
+	if _, err := os.Stat(filepath.Join(moduleDir, "ssr.go")); err != nil {
+		return nil, fmt.Err("ssr.go not found in", moduleDir)
+	}
+
+	var modules []Module
+	if c.listModulesFn != nil {
+		dirs, err := c.listModulesFn(rootDir)
+		if err == nil {
+			for _, d := range dirs {
+				modules = append(modules, Module{
+					Path: filepath.Base(d),
+					Dir:  d,
+				})
+			}
+		}
+	}
+
+	if len(modules) == 0 {
+		var err error
+		modules, err = discoverModules(rootDir)
+		if err != nil {
+			modules = []Module{{Path: filepath.Base(moduleDir), Dir: moduleDir}}
+		}
+	}
+
+	var targetModule Module
+	found := false
+	for _, m := range modules {
+		if m.Dir == moduleDir {
+			targetModule = m
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		// Construct a proper import path by reading go.mod root and appending relative path
+		relPath, _ := filepath.Rel(rootDir, moduleDir)
+		importPath, _ := readGoModulePath(rootDir)
+		if importPath != "" && relPath != "." {
+			targetModule.Path = importPath + "/" + relPath
+		} else {
+			targetModule.Path = filepath.Base(moduleDir)
+		}
+		targetModule.Dir = moduleDir
+	}
+
+	return extractSSRAssetsForModule(targetModule, rootDir, modules, "")
 }

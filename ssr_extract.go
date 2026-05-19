@@ -20,20 +20,18 @@ type SSRAssets struct {
 }
 
 // ExtractSSRAssets uses compile-and-invoke to extract assets from a module.
-// The module must be a proper Go module with go.mod and ssr.go files.
+// moduleDir may be a sub-package; the project root (which contains go.mod) is found by traversing up.
 func ExtractSSRAssets(moduleDir string) (*SSRAssets, error) {
-	// Verify module has go.mod and ssr.go
-	if _, err := os.Stat(filepath.Join(moduleDir, "go.mod")); err != nil {
-		return nil, fmt.Err("no go.mod found", err)
-	}
-	if _, err := os.Stat(filepath.Join(moduleDir, "ssr.go")); err != nil {
-		return nil, fmt.Err("ssr.go not found in", moduleDir)
-	}
-
-	// Determine the project root by looking for the nearest go.mod above moduleDir
+	// Determine the project root by looking for the nearest go.mod above or at moduleDir.
+	// Sub-packages don't have their own go.mod; they share the root's.
 	rootDir, err := findProjectRoot(moduleDir)
 	if err != nil {
-		return nil, fmt.Err("failed to find project root", err)
+		return nil, fmt.Err("failed to find project root from", moduleDir, err)
+	}
+
+	// ssr.go must exist in moduleDir (the sub-package), not at the root.
+	if _, err := os.Stat(filepath.Join(moduleDir, "ssr.go")); err != nil {
+		return nil, fmt.Err("ssr.go not found in", moduleDir)
 	}
 
 	// Discover all modules in the project

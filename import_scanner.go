@@ -136,12 +136,10 @@ func moduleSubpackagesUsed(modulePath string, moduleDir string, importedPaths ma
 		if strings.HasPrefix(imp, modulePath+"/") {
 			subPath := strings.TrimPrefix(imp, modulePath+"/")
 
-			// Only support one level of subdirectories
-			if !strings.Contains(subPath, "/") {
-				if !seen[subPath] {
-					usedSubpackages = append(usedSubpackages, subPath)
-					seen[subPath] = true
-				}
+			// Support any depth — allow multi-segment paths like "modules/contact"
+			if !seen[subPath] {
+				usedSubpackages = append(usedSubpackages, subPath)
+				seen[subPath] = true
 			}
 		}
 	}
