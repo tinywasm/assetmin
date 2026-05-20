@@ -1,96 +1,122 @@
-# PLAN — Fix: Deep Subpackage SSR Load & Hot Reload
+# PLAN — Eliminar `SSRInstance()` del contrato de módulos SSR
 
-## Problem
+## Objetivo
 
-Two bugs prevent CSS defined in nested sub-packages (e.g. `modules/contact/ssr.go`)
-from being applied during the initial scan **and** on hot-reload.
+Reducir la barrera de adopción de `tinywasm/app`: un módulo SSR sólo necesita
+declarar `RenderCSS()`/`RenderHTML()`/`RenderJS()`/`IconSvg()` como métodos sobre
+su tipo. El extractor debe construir el receiver por sí mismo, sin requerir
+`func SSRInstance() *T { return &T{} }` en cada módulo (hoy ~10 ocurrencias
+idénticas en el ecosistema).
 
-Failing tests: `assetmin/tests/TestBug_DeepSubpackage_NotLoadedOnInitialScan`
-               `assetmin/tests/TestBug_DeepSubpackage_HotReloadFails`
+## Justificación
 
----
+- `SSRInstance` es boilerplate: cuerpo siempre `return &T{}`, sin lógica.
+- El contrato real lo lleva la firma del método (`func (c *T) RenderCSS() *Stylesheet`).
+- El extractor ya parsea `ssr.go` con regex; capturar el tipo receiver es trivial.
+- Cumple `core-principles` y `simplify`: menos símbolos públicos, menos código.
 
-## Bug 1 — `moduleSubpackagesUsed` drops multi-segment sub-paths
+## Cambios en assetmin
 
-**File:** `import_scanner.go:140`
+### 1. Detección del tipo receiver
 
-```go
-// Only support one level of subdirectories
-if !strings.Contains(subPath, "/") {
-```
+**Archivo:** [ssr_invoke.go:143-148](../ssr_invoke.go#L143-L148)
 
-When the import path is `example.com/demo/modules/contact`, the resolved
-`subPath` is `"modules/contact"`, which contains `"/"` and is silently dropped.
-Any `ssr.go` nested two or more levels below the module root is therefore never
-extracted during `LoadSSRModules`.
-
-### Fix
-
-Remove the one-level constraint. Walk the full subPath to locate `ssr.go`:
+Reemplazar regex actuales por versiones que capturen el nombre del tipo:
 
 ```go
-// Allow any depth — walk each path segment accumulating the dir.
-if !seen[subPath] {
-    usedSubpackages = append(usedSubpackages, subPath)
-    seen[subPath] = true
-}
+reRenderCSS  = regexp.MustCompile(`(?m)^func \(\w+ \*?(\w+)\) RenderCSS\(\)`)
+reRenderHTML = regexp.MustCompile(`(?m)^func \(\w+ \*?(\w+)\) RenderHTML\(\)`)
+reRenderJS   = regexp.MustCompile(`(?m)^func \(\w+ \*?(\w+)\) RenderJS\(\)`)
+reIconSvg    = regexp.MustCompile(`(?m)^func \(\w+ \*?(\w+)\) IconSvg\(\)`)
+reRootCSS    = regexp.MustCompile(`(?m)^func \(\w+ \*?(\w+)\) RootCSS\(\)`)
 ```
 
-Also update `loadSSRModulesLocked` in `ssr_loader.go`: when building the
-sub-module dir use `filepath.Join(m.Dir, sub)` (already correct), but ensure
-`extractSSRAssetsForModule` receives the deepest dir that actually contains
-`ssr.go`, not the intermediate one.
+Eliminar `reSSRInstance`.
 
----
+### 2. `ModuleAlias`
 
-## Bug 2 — `ExtractSSRAssets` requires `go.mod` in the exact `moduleDir`
+**Archivo:** [ssr_invoke.go:22-37](../ssr_invoke.go#L22-L37)
 
-**File:** `ssr_extract.go:28–31`
+- Eliminar campo `HasInstance`.
+- Añadir campo `ReceiverType string` (el tipo capturado, consistente entre los
+  distintos métodos del módulo — verificar en tests).
+- `HasAnyFeature()` deja de depender de `HasInstance`.
+
+### 3. Template del extractor
+
+**Archivo:** [ssr_invoke.go:78-126](../ssr_invoke.go#L78-L126)
+
+Eliminar la rama `{{if .HasInstance}}...{{else}}...{{end}}`. Reemplazar por
+una sola forma:
 
 ```go
-if _, err := os.Stat(filepath.Join(moduleDir, "go.mod")); err != nil {
-    return nil, fmt.Err("no go.mod found", err)
-}
-if _, err := os.Stat(filepath.Join(moduleDir, "ssr.go")); err != nil {
-    return nil, fmt.Err("ssr.go not found in", moduleDir)
-}
+{{if .ReceiverType}}
+inst := &{{.Alias}}.{{.ReceiverType}}{}
+{{if .HasRoot}}s.Root = inst.RootCSS().String(){{end}}
+{{if .HasRender}}s.Render = inst.RenderCSS().String(){{end}}
+{{if .HasHTML}}s.HTML = inst.RenderHTML(){{end}}
+{{if .HasJS}}s.JS = inst.RenderJS(){{end}}
+{{if .HasIcons}}s.Icons = inst.IconSvg(){{end}}
+{{else}}
+// Fallback: funciones de paquete (sin receiver)
+{{if .HasRender}}s.Render = {{.Alias}}.RenderCSS().String(){{end}}
+...
+{{end}}
 ```
 
-Sub-packages share the project root's `go.mod`. When the file-watcher fires
-for `modules/contact/ssr.go`, `ReloadSSRModule` is called with `contactDir`,
-which has `ssr.go` but no `go.mod`. The function returns immediately with
-"no go.mod found" and the hot-reload is a no-op.
+### 4. `ModulesToAliases`
 
-`findProjectRoot` (same file) already traverses parent directories to find
-`go.mod` — but it is called **after** the early exit check, making it dead code
-for this path.
+**Archivo:** [ssr_invoke.go:151-184](../ssr_invoke.go#L151-L184)
 
-### Fix
+Cuando una de las regex casa, almacenar el grupo capturado en
+`ma.ReceiverType`. Validar que todos los métodos del módulo coincidan en el
+mismo tipo; si difieren, devolver error (caso ilegal hoy, queda explícito).
 
-Replace the two `os.Stat` early exits with a single call to `findProjectRoot`:
+## Tests
 
-```go
-// Determine project root first — sub-packages share the root go.mod.
-rootDir, err := findProjectRoot(moduleDir)
-if err != nil {
-    return nil, fmt.Err("failed to find project root from", moduleDir, err)
-}
+| Test | Acción |
+|---|---|
+| `ssr_extract_subpackage_test.go` | Quitar `SSRInstance` del fixture, verificar extracción sigue funcionando |
+| `tests/ssr_integration_test.go` | Igual: fixtures sin `SSRInstance` |
+| `tests/css_ssr_hotreload_test.go` | Re-ejecutar; no debería tocarse |
+| `testdata/integration_workspace/button/ssr.go` | Borrar `SSRInstance` |
+| `tests/ssr_extract_root_test.go` | Verificar caso "ssr.go en root" sigue válido |
 
-// ssr.go must exist in moduleDir (the sub-package), not at the root.
-if _, err := os.Stat(filepath.Join(moduleDir, "ssr.go")); err != nil {
-    return nil, fmt.Err("ssr.go not found in", moduleDir)
-}
-```
+Añadir test nuevo: `TestExtract_NoSSRInstanceFunction` — confirma que un
+módulo sin `SSRInstance` se extrae correctamente sólo con métodos receiver.
 
----
+## Documentación a actualizar
 
-## Execution stages
+- [`docs/SSR.md`](SSR.md) — eliminar mención de `SSRInstance`, documentar la
+  detección automática del receiver.
+- [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) — actualizar diagrama del extractor.
+- [`docs/COMPONENT_REGISTRATION.md`](COMPONENT_REGISTRATION.md) — el contrato
+  mínimo pasa a ser sólo los métodos `Render*`.
+- [`docs/QUICK_REFERENCE.md`](QUICK_REFERENCE.md) — quitar `SSRInstance` del
+  snippet de "módulo mínimo".
 
-| # | Task | File | Done |
-|---|------|------|------|
-| 1 | Remove one-level constraint in `moduleSubpackagesUsed` | `import_scanner.go` | [ ] |
-| 2 | Reorder checks in `ExtractSSRAssets` — find root before stat go.mod | `ssr_extract.go` | [ ] |
-| 3 | Pass tests: `TestBug_DeepSubpackage_NotLoadedOnInitialScan` | `tests/ssr_subpackage_deep_test.go` | [ ] |
-| 4 | Pass tests: `TestBug_DeepSubpackage_HotReloadFails` | `tests/ssr_subpackage_deep_test.go` | [ ] |
-| 5 | Run full test suite: `go test ./...` | all | [ ] |
-| 6 | Verify live in goflare-demo via MCP browser screenshot | — | [ ] |
+## Stages
+
+| # | Tarea | Done |
+|---|---|---|
+| 1 | Refactor regex + captura de `ReceiverType` | [ ] |
+| 2 | Refactor template + eliminar rama `HasInstance` | [ ] |
+| 3 | Actualizar tests SSR (fixtures sin `SSRInstance`) | [ ] |
+| 4 | Test nuevo `TestExtract_NoSSRInstanceFunction` | [ ] |
+| 5 | `go test ./...` en assetmin verde | [ ] |
+| 6 | Actualizar 4 docs en `assetmin/docs/` | [ ] |
+| 7 | Coordinar con PLAN.md de `components`, `layout`, `goflare-demo` | [ ] |
+
+## Coordinación
+
+Este cambio es **breaking** para módulos que dependen de assetmin. La eliminación
+en consumidores se ejecuta en paralelo en los PLAN.md de:
+
+- `tinywasm/components/docs/PLAN.md`
+- `tinywasm/layout/docs/PLAN.md`
+- `tinywasm/goflare-demo/docs/PLAN.md`
+
+Orden de merge sugerido:
+1. assetmin acepta AMBAS formas (con y sin `SSRInstance`) → merge.
+2. Consumidores eliminan `SSRInstance` → merge.
+3. assetmin elimina la rama de compatibilidad → merge final.
