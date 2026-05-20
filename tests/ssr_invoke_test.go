@@ -15,7 +15,6 @@ func TestModulesToAliases(t *testing.T) {
 	modDir := filepath.Join(tmpDir, "my-mod")
 	os.MkdirAll(modDir, 0755)
 	ssrGo := `package mymod
-func SSRInstance() *T { return &T{} }
 func (t *T) RootCSS() *Stylesheet { return nil }
 func (t *T) RenderCSS() *Stylesheet { return nil }
 `
@@ -36,7 +35,10 @@ func (t *T) RenderCSS() *Stylesheet { return nil }
 	if aliases[0].Alias != "my_mod" {
 		t.Errorf("expected alias my_mod, got %s", aliases[0].Alias)
 	}
-	if !aliases[0].HasInstance || !aliases[0].HasRoot || !aliases[0].HasRender {
+	if aliases[0].ReceiverType != "T" {
+		t.Errorf("expected ReceiverType T, got %s", aliases[0].ReceiverType)
+	}
+	if !aliases[0].HasRoot || !aliases[0].HasRender {
 		t.Errorf("expected all features to be detected for my-mod")
 	}
 
@@ -76,5 +78,34 @@ func TestGenerateExtractorMain(t *testing.T) {
 	}
 	if !strings.Contains(sContent, "mod1 \"example.com/mod1\"") {
 		t.Error("missing import")
+	}
+}
+
+func TestExtract_NoSSRInstanceFunction(t *testing.T) {
+	tmpDir := t.TempDir()
+	modDir := filepath.Join(tmpDir, "mod")
+	os.MkdirAll(modDir, 0755)
+
+	ssrGo := `package mod
+type M struct{}
+func (m *M) RenderCSS() stylesheet { return "CSS" }
+type stylesheet string
+func (s stylesheet) String() string { return string(s) }
+`
+	os.WriteFile(filepath.Join(modDir, "ssr.go"), []byte(ssrGo), 0644)
+
+	modules := []assetmin.Module{
+		{Path: "example.com/mod", Dir: modDir},
+	}
+
+	aliases := assetmin.ModulesToAliases(modules)
+	if len(aliases) != 1 {
+		t.Fatalf("expected 1 alias, got %d", len(aliases))
+	}
+	if aliases[0].ReceiverType != "M" {
+		t.Errorf("expected ReceiverType M, got %s", aliases[0].ReceiverType)
+	}
+	if !aliases[0].HasRender {
+		t.Errorf("expected HasRender to be true")
 	}
 }

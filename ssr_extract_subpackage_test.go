@@ -56,8 +56,6 @@ func (s stylesheet) String() string { return string(s) }
 type Sub struct{}
 
 func (s *Sub) RenderCSS() stylesheet { return stylesheet(".sub{color:red}") }
-
-func SSRInstance() *Sub { return &Sub{} }
 `
 	if err := os.WriteFile(filepath.Join(subDir, "ssr.go"), []byte(subSSR), 0644); err != nil {
 		t.Fatalf("write sub/ssr.go: %v", err)

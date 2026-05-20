@@ -56,8 +56,8 @@ type htmlProvider interface {
 
 ## Conventions
 
-### SSRInstance()
-For automatic module discovery, components must export an `SSRInstance() *T` function in their `ssr.go`. This allows the extractor to instantiate the component and call its asset methods.
+### Automatic Discovery
+For automatic module discovery via `ssr.go`, `assetmin` automatically detects the receiver type of your methods and instantiates the component. You no longer need to export an `SSRInstance()` function.
 
 ### Typed CSS
 Both `RootCSS()` and `RenderCSS()` use the concrete type `*css.Stylesheet` from the `github.com/tinywasm/css` library. This ensures type safety and allows the use of Go-based CSS DSLs. The extractor and `RegisterComponents` call `.String()` on these objects to get the raw CSS.
