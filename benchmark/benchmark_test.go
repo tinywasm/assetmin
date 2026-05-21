@@ -207,7 +207,6 @@ type Button struct{}
 func (b *Button) RenderCSS() stylesheet {
 	return stylesheet(".btn{color:rgb(%d,0,0);}")
 }
-func SSRInstance() *Button { return &Button{} }
 `, val)
         if err := os.WriteFile(filepath.Join(moduleDir, "ssr.go"), []byte(content), 0644); err != nil {
             b.Fatalf("Failed to write ssr.go: %v", err)
@@ -240,11 +239,6 @@ func createTestModule(b *testing.B, parentDir, modulePath, pkgName, body string)
 		b.Fatalf("Failed to write go.mod: %v", err)
 	}
 
-	// Write ssr.go
-	structName := "Stub"
-	if len(pkgName) > 0 {
-		structName = string(pkgName[0]-32) + pkgName[1:]
-	}
 	ssrGo := fmt.Sprintf(`//go:build !wasm
 
 package %s
@@ -252,11 +246,7 @@ package %s
 import "github.com/tinywasm/css"
 
 %s
-
-func SSRInstance() *%s {
-	return &%s{}
-}
-`, pkgName, body, structName, structName)
+`, pkgName, body)
 
 	if err := os.WriteFile(filepath.Join(moduleDir, "ssr.go"), []byte(ssrGo), 0644); err != nil {
 		b.Fatalf("Failed to write ssr.go: %v", err)

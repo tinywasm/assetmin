@@ -41,10 +41,6 @@ func createSSRTestModule(t *testing.T, parentDir, modulePath, pkgName, body stri
 	}
 
 	// Write ssr.go
-	structName := "Test"
-	if len(pkgName) > 0 {
-		structName = string(pkgName[0]-32) + pkgName[1:]
-	}
 	ssrGo := fmt.Sprintf(`//go:build !wasm
 
 package %s
@@ -54,11 +50,7 @@ type stylesheet string
 func (s stylesheet) String() string { return string(s) }
 
 %s
-
-func SSRInstance() *%s {
-	return &%s{}
-}
-`, pkgName, body, structName, structName)
+`, pkgName, body)
 
 	if err := os.WriteFile(filepath.Join(moduleDir, "ssr.go"), []byte(ssrGo), 0644); err != nil {
 		t.Fatalf("Failed to write ssr.go: %v", err)
@@ -161,7 +153,7 @@ func (i *Icons) IconSvg() map[string]string {
 	})
 
 	// Receiver methods are the real-world pattern (e.g. func (c *Component) IconSvg()).
-	// Compile-and-invoke handles them by calling SSRInstance().
+	// Compile-and-invoke handles them by instantiating the receiver type automatically.
 	t.Run("ExtractIconSvg_ReceiverMethod", func(t *testing.T) {
 		parentDir := t.TempDir()
 
