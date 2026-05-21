@@ -1,3 +1,5 @@
+//go:build !wasm
+
 package assetmin_test
 
 // Reproducer test suite for docs/PLAN.md (in-memory → disk transition fix).

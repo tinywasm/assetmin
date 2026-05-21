@@ -4,9 +4,9 @@ go 1.25.2
 
 require (
 	github.com/tdewolff/minify/v2 v2.24.8
-	github.com/tinywasm/css v0.1.1
+	github.com/tinywasm/css v0.1.2
 	github.com/tinywasm/fmt v0.23.9
-	github.com/tinywasm/js v0.0.2
+	github.com/tinywasm/js v0.0.3
 )
 
 require (
