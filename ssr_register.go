@@ -2,6 +2,8 @@ package assetmin
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/tinywasm/css"
 	"github.com/tinywasm/js"
 	"slices"
@@ -44,24 +46,33 @@ func (c *AssetMin) RegisterComponents(providers ...any) error {
 		}
 
 		name := fmt.Sprintf("%T", p)
-		c.UpdateSSRModule(name, css, scripts, html, icons)
+		if err := c.UpdateSSRModule(name, css, scripts, html, icons); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 // UpdateSSRModule inyecta o reemplaza los assets de un módulo por nombre en el slot por defecto (middle).
-func (c *AssetMin) UpdateSSRModule(name string, css string, scripts []*js.Script, html string, icons map[string]string) {
-	c.UpdateSSRModuleInSlot(name, css, scripts, html, icons, "middle")
+func (c *AssetMin) UpdateSSRModule(name string, css string, scripts []*js.Script, html string, icons map[string]string) error {
+	return c.UpdateSSRModuleInSlot(name, css, scripts, html, icons, "middle")
 }
 
 // UpdateSSRModuleInSlot inyecta o reemplaza los assets de un módulo en el slot especificado.
-func (c *AssetMin) UpdateSSRModuleInSlot(name string, css string, scripts []*js.Script, html string, icons map[string]string, slot string) {
+func (c *AssetMin) UpdateSSRModuleInSlot(name string, css string, scripts []*js.Script, html string, icons map[string]string, slot string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.updateSSRModuleInSlot(name, css, scripts, html, icons, slot)
+	return c.updateSSRModuleInSlot(name, css, scripts, html, icons, slot)
 }
 
-func (c *AssetMin) updateSSRModuleInSlot(name string, css string, scripts []*js.Script, html string, icons map[string]string, slot string) {
+func validateStandaloneName(name string) error {
+	if strings.Contains(name, "/") || strings.Contains(name, "..") {
+		return fmt.Errorf("invalid standalone JS name %q: must not contain '/' or '..'", name)
+	}
+	return nil
+}
+
+func (c *AssetMin) updateSSRModuleInSlot(name string, css string, scripts []*js.Script, html string, icons map[string]string, slot string) error {
 	if css != "" {
 		c.mainStyleCssHandler.UpdateContentInSlot(name, "write", &ContentFile{Path: name, Content: []byte(css)}, slot)
 	}
@@ -74,6 +85,9 @@ func (c *AssetMin) updateSSRModuleInSlot(name string, css string, scripts []*js.
 		if s.Name == "" {
 			bundledJS += s.Content
 		} else {
+			if err := validateStandaloneName(s.Name); err != nil {
+				return err
+			}
 			// Standalone JS
 			if _, exists := c.standaloneJS[s.Name]; !exists {
 				c.standaloneJS[s.Name] = newAssetFile(s.Name, "text/javascript", c.Config, nil)
@@ -110,4 +124,5 @@ func (c *AssetMin) updateSSRModuleInSlot(name string, css string, scripts []*js.
 	for id, svg := range icons {
 		c.addIcon(id, svg)
 	}
+	return nil
 }

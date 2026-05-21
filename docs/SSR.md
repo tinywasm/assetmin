@@ -1,6 +1,6 @@
 # SSR Module Asset Extraction & Loading
 
-`assetmin` automatically discovers Go modules in the project tree and extracts their assets — CSS, JS, HTML, SVG icons — routing them into the rendered `<head>`. Modules ship their own assets without ever importing `assetmin`; the contract is purely the function names and conventions in `ssr.go`.
+`assetmin` automatically discovers Go modules in the project tree and extracts their assets — CSS, JS, HTML, SVG icons — routing them into the rendered `<head>`. Modules ship their own assets without ever importing `assetmin`; the contract is purely the function names declared in the asset source files (`css.go`, `js.go`, `svg.go`, `html.go`).
 
 ## Asset Extraction Mechanism
 
@@ -75,7 +75,7 @@ func IconSvg() map[string]string {
 
 ### Automatic Receiver Detection
 
-To enable compile-and-invoke extraction, `assetmin` automatically detects the receiver type used by your asset methods in `ssr.go`. If it finds methods like `func (c *MyComponent) RenderCSS()`, it will automatically instantiate `&mypkg.MyComponent{}` to call them.
+To enable compile-and-invoke extraction, `assetmin` automatically detects the receiver type used by your asset methods across all asset source files (`css.go`, `js.go`, `svg.go`, `html.go`). If it finds methods like `func (c *MyComponent) RenderCSS()`, it will automatically instantiate `&mypkg.MyComponent{}` to call them.
 
 The instance does not need to be initialized with application state — it only needs to be capable of calling the asset methods.
 
