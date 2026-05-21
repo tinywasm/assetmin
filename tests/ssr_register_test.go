@@ -18,13 +18,13 @@ func TestSSRRegistration(t *testing.T) {
 		env := setupTestEnv("ssr_reg", t)
 		am := env.AssetsHandler
 
-		am.UpdateSSRModule("test", ".a{color:red;}", "", "", nil)
+		am.UpdateSSRModule("test", ".a{color:red;}", nil, "", nil)
 		if !am.ContainsCSS(".a{color:red;}") {
 			t.Error("CSS not found")
 		}
 
 		// Second call replaces
-		am.UpdateSSRModule("test", ".a{color:blue;}", "", "", nil)
+		am.UpdateSSRModule("test", ".a{color:blue;}", nil, "", nil)
 		if am.ContainsCSS("color:red;") {
 			t.Error("Old CSS still present")
 		}

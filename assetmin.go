@@ -36,6 +36,8 @@ type AssetMin struct {
 	minifyEnabled       bool
 	fromRoot            *rootCandidate
 	fromCss             *rootCandidate
+	standaloneJS        map[string]*asset
+	standaloneOwners    map[string][]string // module name -> list of standalone asset names (outputs)
 }
 
 type rootCandidate struct {
@@ -44,10 +46,9 @@ type rootCandidate struct {
 }
 
 type Config struct {
-	OutputDir          string                 // eg: web/static, web/public, web/assets
-	RootDir            string                 // Root directory of the project where go.mod exists
-	GetSSRClientInitJS func() (string, error) // javascript code to initialize the wasm or other handlers
-	AppName            string                 // Application name for templates (default: "MyApp")
+	OutputDir       string // eg: web/static, web/public, web/assets
+	RootDir         string // Root directory of the project where go.mod exists
+	AppName         string // Application name for templates (default: "MyApp")
 	AssetsURLPrefix    string                 // New: for HTTP routes
 	DevMode            bool                   // If true, disables caching (default: false)
 }
@@ -59,6 +60,8 @@ func NewAssetMin(ac *Config) *AssetMin {
 		registeredIconIDs: make(map[string]bool),
 		scanner:           newImportScanner(),
 		minifyEnabled:     true,
+		standaloneJS:      make(map[string]*asset),
+		standaloneOwners:  make(map[string][]string),
 	}
 
 	if c.AppName == "" {
@@ -74,7 +77,7 @@ func NewAssetMin(ac *Config) *AssetMin {
 	htmlMainFileName := "index.html"
 
 	c.mainStyleCssHandler = newAssetFile(cssMainFileName, "text/css", ac, nil)
-	c.mainJsHandler = newAssetFile(jsMainFileName, "text/javascript", ac, ac.GetSSRClientInitJS)
+	c.mainJsHandler = newAssetFile(jsMainFileName, "text/javascript", ac, nil)
 	c.spriteSvgHandler = NewSvgHandler(ac, svgMainFileName)
 	c.faviconSvgHandler = NewFaviconSvgHandler(ac, svgFaviconFileName)
 
@@ -156,19 +159,22 @@ func (c *AssetMin) refreshAsset(extension string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var fh *asset
+	var handlers []*asset
 	switch extension {
 	case ".js":
-		fh = c.mainJsHandler
+		handlers = append(handlers, c.mainJsHandler)
+		for _, h := range c.standaloneJS {
+			handlers = append(handlers, h)
+		}
 	case ".css":
-		fh = c.mainStyleCssHandler
+		handlers = append(handlers, c.mainStyleCssHandler)
 	case ".html":
-		fh = c.indexHtmlHandler
+		handlers = append(handlers, c.indexHtmlHandler)
 	case ".svg":
-		fh = c.spriteSvgHandler
+		handlers = append(handlers, c.spriteSvgHandler)
 	}
 
-	if fh != nil {
+	for _, fh := range handlers {
 		if err := c.processAsset(fh); err != nil {
 			c.writeMessage("Error refreshing asset "+extension, err)
 		}
@@ -227,8 +233,16 @@ func (c *AssetMin) ExtractSSRAssetsWithContext(moduleDir string) (*SSRAssets, er
 		return nil, fmt.Err("failed to find project root from", moduleDir, err)
 	}
 
-	if _, err := os.Stat(filepath.Join(moduleDir, "ssr.go")); err != nil {
-		return nil, fmt.Err("ssr.go not found in", moduleDir)
+	// Check for any of the ssrSourceFiles
+	foundSSR := false
+	for _, f := range ssrSourceFiles {
+		if _, err := os.Stat(filepath.Join(moduleDir, f)); err == nil {
+			foundSSR = true
+			break
+		}
+	}
+	if !foundSSR {
+		return nil, fmt.Err("no SSR source files found in", moduleDir)
 	}
 
 	var modules []Module

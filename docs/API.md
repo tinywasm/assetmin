@@ -34,12 +34,11 @@ Assets are organized into three content sections to ensure correct loading order
 
 ```go
 type Config struct {
-    OutputDir          string                 // Directory for DiskMode output
-    RootDir            string                 // Project root (used for module discovery)
-    GetSSRClientInitJS func() (string, error) // Returns JS code to initialize the client
-    AppName            string                 // Application name used in templates
-    AssetsURLPrefix    string                 // URL prefix for assets (e.g., "/static/")
-    Logger             func(msg ...any)       // Optional logging function
+    OutputDir       string         // Directory for DiskMode output
+    RootDir         string         // Project root (used for module discovery)
+    AppName         string         // Application name used in templates
+    AssetsURLPrefix string         // URL prefix for assets (e.g., "/static/")
+    Logger          func(msg ...any) // Optional logging function
 }
 ```
 
@@ -96,7 +95,7 @@ if err := am.FlushToDisk(); err != nil {
 ### SSR & Module Loading
 
 #### LoadSSRModules()
-Starts the discovery of all Go modules in the project tree, scans for `ssr.go` files, and extracts assets (CSS, JS, HTML, Icons) asynchronously via compile-and-invoke.
+Starts the discovery of all Go modules in the project tree, scans for asset source files (`css.go`, `js.go`, `svg.go`, `html.go`; legacy `ssr.go` also recognized), and extracts assets (CSS, JS, HTML, Icons) asynchronously via compile-and-invoke.
 
 #### ReloadSSRModule(moduleDir string) error
 Re-extracts and updates assets for a single module directory. Used for hot reload.
@@ -105,7 +104,7 @@ Re-extracts and updates assets for a single module directory. Used for hot reloa
 Registers live component instances that implement SSR interfaces.
 - `RootCSS() *css.Stylesheet`: Routed to `open` slot.
 - `RenderCSS() *css.Stylesheet`: Routed to `middle` or `close` slot.
-- `RenderJS() string`
+- `RenderJS() []*js.Script`: Scripts with `Name==""` accumulate in the global bundle (`script.js`); scripts with `Name!=""` are written as standalone files at the public root (e.g. `sw.js`).
 - `RenderHTML() string`
 - `IconSvg() map[string]string`
 

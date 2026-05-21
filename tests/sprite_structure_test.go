@@ -10,7 +10,6 @@ import (
 func TestIconSpriteStructure(t *testing.T) {
 	ac := &assetmin.Config{
 		OutputDir:          t.TempDir(),
-		GetSSRClientInitJS: func() (string, error) { return "", nil },
 		AppName:            "TestSprite",
 		AssetsURLPrefix:    "/assets",
 		DevMode:            true,

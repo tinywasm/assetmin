@@ -11,9 +11,9 @@ func TestSSRLoader(t *testing.T) {
 		am := env.AssetsHandler
 
 		// Mock module directories injection
-		am.UpdateSSRModuleInSlot("tinywasm/css", ".dom{color:red;}", "", "", nil, "open")
-		am.UpdateSSRModuleInSlot("other/module", ".ext{color:green;}", "", "", nil, "middle")
-		am.UpdateSSRModuleInSlot("root", ".root{color:blue;}", "", "", nil, "close")
+		am.UpdateSSRModuleInSlot("tinywasm/css", ".dom{color:red;}", nil, "", nil, "open")
+		am.UpdateSSRModuleInSlot("other/module", ".ext{color:green;}", nil, "", nil, "middle")
+		am.UpdateSSRModuleInSlot("root", ".root{color:blue;}", nil, "", nil, "close")
 
 		// Verify presence
 		if !am.ContainsCSS(".dom") || !am.ContainsCSS(".ext") || !am.ContainsCSS(".root") {
@@ -41,7 +41,7 @@ func TestSSRLoader(t *testing.T) {
 		env := setupTestEnv("local_icons", t)
 		am := env.AssetsHandler
 
-		am.UpdateSSRModule("root", "", "", "", map[string]string{
+		am.UpdateSSRModule("root", "", nil, "", map[string]string{
 			"local-icon": "<path d='M0 0l1 1'/>",
 		})
 

@@ -24,7 +24,7 @@ func TestCSSHotReload_NonSSRMode_KeyMismatchDuplicatesCSS(t *testing.T) {
 		RootDir:   tmpDir,
 	})
 
-	am.UpdateSSRModule("tmp", initialCSS, "", "", nil)
+	am.UpdateSSRModule("tmp", initialCSS, nil, "", nil)
 
 	if !am.ContainsCSS(initialCSS) {
 		t.Fatalf("precondition failed")
@@ -56,13 +56,13 @@ func TestCSSHotReload_SSRMode_UpdatesCorrectly(t *testing.T) {
 	am.SetSSRCompiler(func() error { return nil })
 
 	moduleName := "tmp"
-	am.UpdateSSRModule(moduleName, initialCSS, "", "", nil)
+	am.UpdateSSRModule(moduleName, initialCSS, nil, "", nil)
 
 	if !am.ContainsCSS(initialCSS) {
 		t.Fatalf("precondition failed")
 	}
 
-	am.UpdateSSRModule(moduleName, updatedCSS, "", "", nil)
+	am.UpdateSSRModule(moduleName, updatedCSS, nil, "", nil)
 
 	if am.ContainsCSS(initialCSS) {
 		t.Error("stale CSS still present")
@@ -85,7 +85,7 @@ func TestCSSHotReload_SSRMode_RefreshCalledOnReloadFailure(t *testing.T) {
 
 	initialCSS := ".card { background: red; }"
 	updatedCSS := ".card { background: blue; }"
-	am.UpdateSSRModule("mymodule", initialCSS, "", "", nil)
+	am.UpdateSSRModule("mymodule", initialCSS, nil, "", nil)
 
 	cssPath := filepath.Join(moduleDir, "mymodule.css")
 	if err := os.WriteFile(cssPath, []byte(updatedCSS), 0644); err != nil {

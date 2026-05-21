@@ -17,7 +17,6 @@ func TestReproCorruption(t *testing.T) {
 	// Setup environment
 	ac := &assetmin.Config{
 		OutputDir:          t.TempDir(),
-		GetSSRClientInitJS: func() (string, error) { return "", nil },
 		AppName:            "TestApp",
 		AssetsURLPrefix:    "/assets",
 		DevMode:            true, // Disable cache for more frequent regeneration

@@ -15,11 +15,16 @@ import (
 
 // ssrCollectorOutput is the structure produced by the generated main.go
 type ssrCollectorOutput struct {
-	Root   string            `json:"root"`
-	Render string            `json:"render"`
-	HTML   string            `json:"html"`
-	JS     string            `json:"js"`
-	Icons  map[string]string `json:"icons"`
+	Root    string            `json:"root"`
+	Render  string            `json:"render"`
+	HTML    string            `json:"html"`
+	Scripts []ScriptOutput    `json:"scripts"`
+	Icons   map[string]string `json:"icons"`
+}
+
+type ScriptOutput struct {
+	Name    string `json:"name"`
+	Content string `json:"content"`
 }
 
 type ModuleAlias struct {
@@ -86,12 +91,17 @@ import (
 	{{end}}
 )
 
+type script struct {
+	Name    string ` + "`json:\"name\"`" + `
+	Content string ` + "`json:\"content\"`" + `
+}
+
 type ssr struct {
-	Root   string            ` + "`json:\"root\"`" + `
-	Render string            ` + "`json:\"render\"`" + `
-	HTML   string            ` + "`json:\"html\"`" + `
-	JS     string            ` + "`json:\"js\"`" + `
-	Icons  map[string]string ` + "`json:\"icons\"`" + `
+	Root    string            ` + "`json:\"root\"`" + `
+	Render  string            ` + "`json:\"render\"`" + `
+	HTML    string            ` + "`json:\"html\"`" + `
+	Scripts []script          ` + "`json:\"scripts\"`" + `
+	Icons   map[string]string ` + "`json:\"icons\"`" + `
 }
 
 func main() {
@@ -106,7 +116,11 @@ func main() {
 			{{if .HasRoot}}s.Root = inst.RootCSS().String(){{end}}
 			{{if .HasRender}}s.Render = inst.RenderCSS().String(){{end}}
 			{{if .HasHTML}}s.HTML = inst.RenderHTML(){{end}}
-			{{if .HasJS}}s.JS = inst.RenderJS(){{end}}
+			{{if .HasJS}}
+			for _, scr := range inst.RenderJS() {
+				s.Scripts = append(s.Scripts, script{Name: scr.Name, Content: scr.Content})
+			}
+			{{end}}
 			{{if .HasIcons}}s.Icons = inst.IconSvg(){{end}}
 		}
 		{{else}}
@@ -114,7 +128,11 @@ func main() {
 			{{if .HasRoot}}s.Root = {{.Alias}}.RootCSS().String(){{end}}
 			{{if .HasRender}}s.Render = {{.Alias}}.RenderCSS().String(){{end}}
 			{{if .HasHTML}}s.HTML = {{.Alias}}.RenderHTML(){{end}}
-			{{if .HasJS}}s.JS = {{.Alias}}.RenderJS(){{end}}
+			{{if .HasJS}}
+			for _, scr := range {{.Alias}}.RenderJS() {
+				s.Scripts = append(s.Scripts, script{Name: scr.Name, Content: scr.Content})
+			}
+			{{end}}
 			{{if .HasIcons}}s.Icons = {{.Alias}}.IconSvg(){{end}}
 		}
 		{{end}}
@@ -173,24 +191,32 @@ func ModulesToAliases(modules []Module) []ModuleAlias {
 			Alias: alias,
 		}
 
-		// Read ssr.go to detect features
+		// Read all SSR source files to detect features
 		if m.Dir != "" {
-			if content, err := os.ReadFile(filepath.Join(m.Dir, "ssr.go")); err == nil {
+			var combinedContent []byte
+			for _, f := range ssrSourceFiles {
+				if content, err := os.ReadFile(filepath.Join(m.Dir, f)); err == nil {
+					combinedContent = append(combinedContent, content...)
+					combinedContent = append(combinedContent, '\n')
+				}
+			}
+
+			if len(combinedContent) > 0 {
 				// Detect receiver type
-				ma.ReceiverType = detectReceiverType(content)
+				ma.ReceiverType = detectReceiverType(combinedContent)
 
 				if ma.ReceiverType != "" {
-					ma.HasRoot = reRootCSS.Match(content)
-					ma.HasRender = reRenderCSS.Match(content)
-					ma.HasHTML = reRenderHTML.Match(content)
-					ma.HasJS = reRenderJS.Match(content)
-					ma.HasIcons = reIconSvg.Match(content)
+					ma.HasRoot = reRootCSS.Match(combinedContent)
+					ma.HasRender = reRenderCSS.Match(combinedContent)
+					ma.HasHTML = reRenderHTML.Match(combinedContent)
+					ma.HasJS = reRenderJS.Match(combinedContent)
+					ma.HasIcons = reIconSvg.Match(combinedContent)
 				} else {
-					ma.HasRoot = reRootCSSFunc.Match(content)
-					ma.HasRender = reRenderCSSFunc.Match(content)
-					ma.HasHTML = reRenderHTMLFunc.Match(content)
-					ma.HasJS = reRenderJSFunc.Match(content)
-					ma.HasIcons = reIconSvgFunc.Match(content)
+					ma.HasRoot = reRootCSSFunc.Match(combinedContent)
+					ma.HasRender = reRenderCSSFunc.Match(combinedContent)
+					ma.HasHTML = reRenderHTMLFunc.Match(combinedContent)
+					ma.HasJS = reRenderJSFunc.Match(combinedContent)
+					ma.HasIcons = reIconSvgFunc.Match(combinedContent)
 				}
 			}
 		}

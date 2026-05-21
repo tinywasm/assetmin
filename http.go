@@ -11,6 +11,13 @@ func (c *AssetMin) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc(c.mainStyleCssHandler.GetURLPath(), c.serveAsset(c.mainStyleCssHandler))
 	mux.HandleFunc(c.mainJsHandler.GetURLPath(), c.serveAsset(c.mainJsHandler))
 	mux.HandleFunc(c.faviconSvgHandler.GetURLPath(), c.serveAsset(c.faviconSvgHandler))
+
+	// Standalone JS assets
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, h := range c.standaloneJS {
+		mux.HandleFunc(h.GetURLPath(), c.serveAsset(h))
+	}
 }
 
 func (c *AssetMin) serveAsset(asset *asset) http.HandlerFunc {
