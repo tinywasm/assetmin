@@ -23,18 +23,18 @@ type ssrCollectorOutput struct {
 }
 
 type ModuleAlias struct {
-	Path        string
-	Alias       string
-	HasInstance bool
-	HasRoot     bool
-	HasRender   bool
-	HasHTML     bool
-	HasJS       bool
-	HasIcons    bool
+	Path         string
+	Alias        string
+	ReceiverType string
+	HasRoot      bool
+	HasRender    bool
+	HasHTML      bool
+	HasJS        bool
+	HasIcons     bool
 }
 
 func (m ModuleAlias) HasAnyFeature() bool {
-	return m.HasInstance || m.HasRoot || m.HasRender || m.HasHTML || m.HasJS || m.HasIcons
+	return m.HasRoot || m.HasRender || m.HasHTML || m.HasJS || m.HasIcons
 }
 
 // Global mutex for SSR extraction protection
@@ -100,9 +100,9 @@ func main() {
 	{{if .HasAnyFeature}}
 	{
 		var s ssr
-		{{if .HasInstance}}
+		{{if .ReceiverType}}
 		{
-			inst := {{.Alias}}.SSRInstance()
+			inst := &{{.Alias}}.{{.ReceiverType}}{}
 			{{if .HasRoot}}s.Root = inst.RootCSS().String(){{end}}
 			{{if .HasRender}}s.Render = inst.RenderCSS().String(){{end}}
 			{{if .HasHTML}}s.HTML = inst.RenderHTML(){{end}}
@@ -110,11 +110,13 @@ func main() {
 			{{if .HasIcons}}s.Icons = inst.IconSvg(){{end}}
 		}
 		{{else}}
-		{{if .HasRoot}}s.Root = {{.Alias}}.RootCSS().String(){{end}}
-		{{if .HasRender}}s.Render = {{.Alias}}.RenderCSS().String(){{end}}
-		{{if .HasHTML}}s.HTML = {{.Alias}}.RenderHTML(){{end}}
-		{{if .HasJS}}s.JS = {{.Alias}}.RenderJS(){{end}}
-		{{if .HasIcons}}s.Icons = {{.Alias}}.IconSvg(){{end}}
+		{
+			{{if .HasRoot}}s.Root = {{.Alias}}.RootCSS().String(){{end}}
+			{{if .HasRender}}s.Render = {{.Alias}}.RenderCSS().String(){{end}}
+			{{if .HasHTML}}s.HTML = {{.Alias}}.RenderHTML(){{end}}
+			{{if .HasJS}}s.JS = {{.Alias}}.RenderJS(){{end}}
+			{{if .HasIcons}}s.Icons = {{.Alias}}.IconSvg(){{end}}
+		}
 		{{end}}
 		all["{{.Path}}"] = s
 	}
@@ -140,12 +142,18 @@ func main() {
 }
 
 var (
-	reSSRInstance = regexp.MustCompile(`(?m)^func SSRInstance\(`)
-	reRootCSS     = regexp.MustCompile(`(?m)^func.*RootCSS\(\)`)
-	reRenderCSS   = regexp.MustCompile(`(?m)^func.*RenderCSS\(\)`)
-	reRenderHTML  = regexp.MustCompile(`(?m)^func.*RenderHTML\(\)`)
-	reRenderJS    = regexp.MustCompile(`(?m)^func.*RenderJS\(\)`)
-	reIconSvg     = regexp.MustCompile(`(?m)^func.*IconSvg\(\)`)
+	reRootCSS    = regexp.MustCompile(`(?m)^func \(\w+ \*?(\w+)\) RootCSS\(\)`)
+	reRenderCSS  = regexp.MustCompile(`(?m)^func \(\w+ \*?(\w+)\) RenderCSS\(\)`)
+	reRenderHTML = regexp.MustCompile(`(?m)^func \(\w+ \*?(\w+)\) RenderHTML\(\)`)
+	reRenderJS   = regexp.MustCompile(`(?m)^func \(\w+ \*?(\w+)\) RenderJS\(\)`)
+	reIconSvg    = regexp.MustCompile(`(?m)^func \(\w+ \*?(\w+)\) IconSvg\(\)`)
+
+	// Fallback regexes for functions without receiver
+	reRootCSSFunc    = regexp.MustCompile(`(?m)^func RootCSS\(\)`)
+	reRenderCSSFunc  = regexp.MustCompile(`(?m)^func RenderCSS\(\)`)
+	reRenderHTMLFunc = regexp.MustCompile(`(?m)^func RenderHTML\(\)`)
+	reRenderJSFunc   = regexp.MustCompile(`(?m)^func RenderJS\(\)`)
+	reIconSvgFunc    = regexp.MustCompile(`(?m)^func IconSvg\(\)`)
 )
 
 // ModulesToAliases converts module information to alias mappings and detects features via regex.
@@ -168,16 +176,45 @@ func ModulesToAliases(modules []Module) []ModuleAlias {
 		// Read ssr.go to detect features
 		if m.Dir != "" {
 			if content, err := os.ReadFile(filepath.Join(m.Dir, "ssr.go")); err == nil {
-				ma.HasInstance = reSSRInstance.Match(content)
-				ma.HasRoot = reRootCSS.Match(content)
-				ma.HasRender = reRenderCSS.Match(content)
-				ma.HasHTML = reRenderHTML.Match(content)
-				ma.HasJS = reRenderJS.Match(content)
-				ma.HasIcons = reIconSvg.Match(content)
+				// Detect receiver type
+				ma.ReceiverType = detectReceiverType(content)
+
+				if ma.ReceiverType != "" {
+					ma.HasRoot = reRootCSS.Match(content)
+					ma.HasRender = reRenderCSS.Match(content)
+					ma.HasHTML = reRenderHTML.Match(content)
+					ma.HasJS = reRenderJS.Match(content)
+					ma.HasIcons = reIconSvg.Match(content)
+				} else {
+					ma.HasRoot = reRootCSSFunc.Match(content)
+					ma.HasRender = reRenderCSSFunc.Match(content)
+					ma.HasHTML = reRenderHTMLFunc.Match(content)
+					ma.HasJS = reRenderJSFunc.Match(content)
+					ma.HasIcons = reIconSvgFunc.Match(content)
+				}
 			}
 		}
 
 		aliases = append(aliases, ma)
 	}
 	return aliases
+}
+
+func detectReceiverType(content []byte) string {
+	regs := []*regexp.Regexp{reRootCSS, reRenderCSS, reRenderHTML, reRenderJS, reIconSvg}
+	var detected string
+	for _, re := range regs {
+		m := re.FindSubmatch(content)
+		if len(m) > 1 {
+			found := string(m[1])
+			if detected != "" && detected != found {
+				// Consistency check: we only support one receiver type per ssr.go
+				// In case of mismatch, we could return error or just the first one found.
+				// For now, let's stick to the first one.
+				continue
+			}
+			detected = found
+		}
+	}
+	return detected
 }

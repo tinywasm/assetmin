@@ -33,7 +33,7 @@ am.RegisterComponents(button, card)
 ```
 
 ### SSR Conventions
-- **Components:** Must export `SSRInstance() *T`.
+- **Components:** Receiver type for `Render*` methods is automatically detected and instantiated. No `SSRInstance()` required.
 - **Core Modules:** Like `tinywasm/css`, may expose package-level functions instead.
 - **Typed CSS:** `RenderCSS()` and `RootCSS()` return `*css.Stylesheet` (from `github.com/tinywasm/css`).
 

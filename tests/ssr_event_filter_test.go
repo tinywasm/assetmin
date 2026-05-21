@@ -47,7 +47,7 @@ func TestSSRMode_EmbeddedAssetHotReload(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte("module tmp\ngo 1.21\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	ssrGo := "//go:build !wasm\n\npackage tmp\ntype T struct{}\nfunc SSRInstance() *T { return &T{} }\nfunc (t *T) RenderCSS() *Stylesheet { return New(\"body { color: red; }\") }\ntype Stylesheet string\nfunc (s Stylesheet) String() string { return string(s) }\nfunc New(s string) *Stylesheet { return (*Stylesheet)(&s) }\n"
+	ssrGo := "//go:build !wasm\n\npackage tmp\ntype T struct{}\nfunc (t *T) RenderCSS() *Stylesheet { return New(\"body { color: red; }\") }\ntype Stylesheet string\nfunc (s Stylesheet) String() string { return string(s) }\nfunc New(s string) *Stylesheet { return (*Stylesheet)(&s) }\n"
 	if err := os.WriteFile(filepath.Join(tmpDir, "ssr.go"), []byte(ssrGo), 0644); err != nil {
 		t.Fatal(err)
 	}

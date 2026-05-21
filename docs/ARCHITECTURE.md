@@ -16,8 +16,8 @@
 ## Data Flow
 
 1.  **Discovery**: `assetmin` uses `go list` to find all modules in the project.
-2.  **Compilation**: A temporary `main.go` is generated that imports all modules and invokes their `SSRInstance()` functions (or package-level functions).
-3.  **Extraction**: `go run main.go` executes once, calling asset methods (`RenderCSS()`, `RenderHTML()`, etc.) and collecting results as JSON.
+2.  **Compilation**: A temporary `main.go` is generated that imports all modules and automatically detects their receiver type (or uses package-level functions).
+3.  **Extraction**: `go run main.go` executes once, instantiating components via their detected types and calling asset methods (`RenderCSS()`, `RenderHTML()`, etc.), collecting results as JSON.
 4.  **Caching**: Results are cached globally (`ssrGlobalCache`) using the hash of module Go files (not `rootDir`) as key, via `computeModuleHashSet`.
 5.  **Injection**: Extracted assets are injected into the appropriate handlers and slots.
 6.  **Processing**: Concatenation and Minification (using `tdewolff/minify`).

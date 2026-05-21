@@ -226,7 +226,7 @@ Potential improvements to explore:
 
 The compile-and-invoke mechanism represents a **clear performance win** for the typical multi-module project, especially when combined with hash-based caching. The trade-off of using Go's compiler (heavier) is more than offset by the massive reduction in per-module parsing overhead and the effectiveness of caching.
 
-For applications with proper Go modules and the new `SSRInstance()` convention, expect:
+For applications with proper Go modules and the automatic receiver detection convention, expect:
 - **4-5× faster** cold builds
 - **250+ × faster** warm builds with cache
 - **Better scaling** as the project grows

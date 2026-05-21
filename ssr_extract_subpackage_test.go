@@ -11,7 +11,7 @@ import (
 // subpackage of an existing module (i.e. it has no go.mod of its own).
 //
 // Symptom in production: tinywasm/layout/platformd is a subpackage of the
-// tinywasm/layout module. platformd.SSRInstance().RenderCSS().String()
+// tinywasm/layout module. platformd.RenderCSS().String() (via extractor)
 // produces ~6.6 KB of valid CSS, but assetmin writes 0 bytes to /style.css.
 //
 // Root cause: extractSSRAssetsForModule(m, rootDir, allModules, "") calls
@@ -39,7 +39,7 @@ func TestExtractSSRAssetsForModule_Subpackage(t *testing.T) {
 		t.Fatalf("write parent.go: %v", err)
 	}
 
-	// Subpackage with ssr.go exposing SSRInstance + RenderCSS,
+	// Subpackage with ssr.go exposing RenderCSS,
 	// mirroring the platformd shape.
 	subDir := filepath.Join(parentDir, "sub")
 	if err := os.MkdirAll(subDir, 0755); err != nil {
@@ -56,8 +56,6 @@ func (s stylesheet) String() string { return string(s) }
 type Sub struct{}
 
 func (s *Sub) RenderCSS() stylesheet { return stylesheet(".sub{color:red}") }
-
-func SSRInstance() *Sub { return &Sub{} }
 `
 	if err := os.WriteFile(filepath.Join(subDir, "ssr.go"), []byte(subSSR), 0644); err != nil {
 		t.Fatalf("write sub/ssr.go: %v", err)

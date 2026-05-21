@@ -89,10 +89,6 @@ func (n *Noroot) RenderCSS() stylesheet {
 func (n *Noroot) RenderHTML() string { return "" }
 func (n *Noroot) RenderJS() string { return "" }
 func (n *Noroot) IconSvg() map[string]string { return nil }
-
-func SSRInstance() *Noroot {
-	return &Noroot{}
-}
 `
 	if err := os.WriteFile(filepath.Join(moduleDir, "ssr.go"), []byte(ssrGo), 0644); err != nil {
 		t.Fatalf("Failed to write noroot ssr.go: %v", err)

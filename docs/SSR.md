@@ -4,7 +4,7 @@
 
 ## Asset Extraction Mechanism
 
-Assets are extracted via **compile-and-invoke**: `assetmin` generates a single combined `main.go` that imports all discovered components, instantiates each via `SSRInstance()` (for components) or calls package-level functions (for modules like `tinywasm/css`), and invokes their asset methods (`RenderCSS()`, `RenderHTML()`, etc.), collecting the results into JSON. This replaces earlier AST-based parsing, which could only handle string literals and simple concatenation.
+Assets are extracted via **compile-and-invoke**: `assetmin` generates a single combined `main.go` that imports all discovered components, automatically detects the receiver type for asset methods (or uses package-level functions), and invokes their methods (`RenderCSS()`, `RenderHTML()`, etc.), collecting the results into JSON. This replaces earlier AST-based parsing, which could only handle string literals and simple concatenation.
 
 The extraction happens once per unique set of component file hashes (cached), then the aggregated output is parsed into per-component `SSRAssets`.
 
@@ -60,22 +60,11 @@ func IconSvg() map[string]string {
 | `RenderHTML()` | `HTML` | same as `RenderCSS` | Only if publicly readable |
 | `IconSvg()` | `Icons` | sprite registry (no slot) | Keys are icon IDs |
 
-### The `SSRInstance()` convention
+### Automatic Receiver Detection
 
-To enable compile-and-invoke extraction, each module's `ssr.go` must expose a function:
+To enable compile-and-invoke extraction, `assetmin` automatically detects the receiver type used by your asset methods in `ssr.go`. If it finds methods like `func (c *MyComponent) RenderCSS()`, it will automatically instantiate `&mypkg.MyComponent{}` to call them.
 
-```go
-// SSRInstance returns a zero-value instance implementing the SSR interfaces.
-// This is called by the generated asset extractor to collect asset values
-// without requiring reflection or complex setup.
-func SSRInstance() *MyComponent {
-    return &MyComponent{}
-}
-```
-
-Replace `MyComponent` with your actual struct (or interface type implementing `RenderCSS()`, `RenderHTML()`, etc.). The instance does not need to be initialized with application state — it only needs to be capable of calling the asset methods.
-
-**Exception:** Modules like `tinywasm/css` that expose package-level functions instead of an instance are also supported. The extractor detects both patterns.
+The instance does not need to be initialized with application state — it only needs to be capable of calling the asset methods.
 
 **Example:**
 
@@ -97,11 +86,9 @@ func (b *Button) RenderCSS() *css.Stylesheet {
 func (b *Button) RenderHTML() string { return `<button></button>` }
 func (b *Button) RenderJS() string   { return "" }
 func (b *Button) IconSvg() map[string]string { return nil }
-
-func SSRInstance() *Button {
-    return &Button{}
-}
 ```
+
+**Fallback:** If no receiver type is detected, `assetmin` assumes the assets are provided by package-level functions (e.g., `func RenderCSS() *css.Stylesheet`).
 
 ### Supported asset method returns
 
