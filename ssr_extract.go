@@ -8,13 +8,16 @@ import (
 	"path/filepath"
 
 	"github.com/tinywasm/fmt"
+	"github.com/tinywasm/js"
 )
+
+var ssrSourceFiles = []string{"css.go", "js.go", "svg.go", "html.go", "ssr.go"}
 
 type SSRAssets struct {
 	ModuleName string
 	RootCSS    string
 	CSS        string
-	JS         string
+	JS         []*js.Script
 	HTML       string
 	Icons      map[string]string
 }
@@ -29,9 +32,16 @@ func ExtractSSRAssets(moduleDir string) (*SSRAssets, error) {
 		return nil, fmt.Err("failed to find project root from", moduleDir, err)
 	}
 
-	// ssr.go must exist in moduleDir (the sub-package), not at the root.
-	if _, err := os.Stat(filepath.Join(moduleDir, "ssr.go")); err != nil {
-		return nil, fmt.Err("ssr.go not found in", moduleDir)
+	// One of ssrSourceFiles must exist in moduleDir (the sub-package), not at the root.
+	foundSSR := false
+	for _, f := range ssrSourceFiles {
+		if _, err := os.Stat(filepath.Join(moduleDir, f)); err == nil {
+			foundSSR = true
+			break
+		}
+	}
+	if !foundSSR {
+		return nil, fmt.Err("no SSR source files found in", moduleDir)
 	}
 
 	// Discover all modules in the project
@@ -101,11 +111,19 @@ func extractSSRAssetsForModule(m Module, rootDir string, allModules []Module, bi
 		}, nil
 	}
 
+	scripts := make([]*js.Script, 0, len(output.Scripts))
+	for _, s := range output.Scripts {
+		scripts = append(scripts, &js.Script{
+			Name:    s.Name,
+			Content: s.Content,
+		})
+	}
+
 	return &SSRAssets{
 		ModuleName: m.Path,
 		RootCSS:    output.Root,
 		CSS:        output.Render,
-		JS:         output.JS,
+		JS:         scripts,
 		HTML:       output.HTML,
 		Icons:      output.Icons,
 	}, nil

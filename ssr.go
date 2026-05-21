@@ -29,7 +29,10 @@ func (c *AssetMin) FlushToDisk() error {
 	}
 
 	c.mu.Lock()
-	snapshots := make([]snapshot, 0, len(c.allAssets))
+	// Combine regular assets and standalone assets
+	totalAssets := len(c.allAssets)
+	snapshots := make([]snapshot, 0, totalAssets)
+
 	for _, a := range c.allAssets {
 		a.RegenerateCache(c.activeMinifier())
 		snapshots = append(snapshots, snapshot{

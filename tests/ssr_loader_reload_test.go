@@ -10,7 +10,7 @@ func TestReload_AppGainsRootCSS(t *testing.T) {
 	am := env.AssetsHandler
 
 	// 1. Framework provides RootCSS
-	am.UpdateSSRModuleInSlot("tinywasm/css", ":root{--css:1;}", "", "", nil, "open")
+	am.UpdateSSRModuleInSlot("tinywasm/css", ":root{--css:1;}", nil, "", nil, "open")
 
 	output, _ := am.GetMinifiedCSS()
 	if !strings.Contains(string(output), "--css:1") {
@@ -42,7 +42,7 @@ func TestReload_AppLosesRootCSS(t *testing.T) {
 	// the RootCSS persists or changes according to the single-winner rule.
 
 	// Actually, let's just test that the handler correctly manages the 'open' slot.
-	am.UpdateSSRModuleInSlot("app-root", ":root{--app:1;}", "", "", nil, "open")
+	am.UpdateSSRModuleInSlot("app-root", ":root{--app:1;}", nil, "", nil, "open")
 
 	if !am.ContainsCSS("--app:1") {
 		t.Fatal("Initial app root css not found")

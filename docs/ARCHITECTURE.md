@@ -5,7 +5,7 @@
 ## Core Concepts
 
 - **AssetMin**: The main struct that orchestrates the asset pipeline.
-- **Handlers**: Specific handlers for different asset types (`mainStyleCssHandler`, `mainJsHandler`, `spriteSvgHandler`, `indexHtmlHandler`).
+- **Handlers**: Specific handlers for different asset types (`mainStyleCssHandler`, `mainJsHandler`, `spriteSvgHandler`, `indexHtmlHandler`). It also supports dynamic handlers for standalone JS files (e.g., service workers).
 - **Memory Mode vs. Disk Mode**: Assets can be served directly from memory or written to disk for static serving.
 - **SSR Extraction**: Automatic extraction of assets from Go modules via compile-and-invoke mechanism (replaced AST parsing).
 - **Slot System**: Content is organized into three slots to ensure correct loading order:
@@ -43,4 +43,4 @@ The wall-time of the dev loop (edit -> extract) is approximately 300-500ms depen
 
 ## Hot Reload
 
-`assetmin` integrates with the dev server to support hot reloading. When a local `ssr.go` file changes, the changes are re-extracted and the in-memory cache is invalidated, providing instant updates without restarting the server.
+`assetmin` integrates with the dev server to support hot reloading. When a local asset file (`css.go`, `js.go`, `svg.go`, `html.go`, `ssr.go`) changes, the changes are re-extracted and the in-memory cache is invalidated, providing instant updates without restarting the server.

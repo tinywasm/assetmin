@@ -19,6 +19,7 @@ type TestEnvironment struct {
 	MainHtmlPath  string
 	AssetsHandler *assetmin.AssetMin
 	t             *testing.T
+	OutDir        string
 }
 
 // CleanDirectory removes all content from the test directory but keeps the directory itself
@@ -49,26 +50,17 @@ func setupTestEnv(testCase string, t *testing.T, objects ...any) *TestEnvironmen
 	publicDir := filepath.Join(baseDir, "web", "public")
 	modulesDir := filepath.Join(baseDir, "modules")
 
-	// Create asset configuration with logging using t.Log
+	// Create asset configuration
 	ac := &assetmin.Config{
 		OutputDir: publicDir,
-		GetSSRClientInitJS: func() (string, error) {
-			return "console.log('init');", nil
-		},
 	}
 
 	// Check if any of the objects is a ContentFile and write it to disk
-	// Also allow passing a func() (string, error) to override GetRuntimeInitializerJS
 	for _, obj := range objects {
 		if file, ok := obj.(*assetmin.ContentFile); ok {
 			if err := file.WriteToDisk(); err != nil {
 				t.Logf("Error writing ContentFile to disk: %v", err)
 			}
-		}
-
-		// add WebAssembly initialization code when a function is provided
-		if funcInitJs, ok := obj.(func() (string, error)); ok {
-			ac.GetSSRClientInitJS = funcInitJs
 		}
 	}
 
@@ -86,6 +78,7 @@ func setupTestEnv(testCase string, t *testing.T, objects ...any) *TestEnvironmen
 		MainHtmlPath:  assetsHandler.GetMainHtmlPath(),
 		AssetsHandler: assetsHandler,
 		t:             t,
+		OutDir:        publicDir,
 	}
 }
 
@@ -164,4 +157,21 @@ func (env *TestEnvironment) AssertHasIcon(id string) {
 	if !env.AssetsHandler.HasIcon(id) {
 		env.t.Errorf("Icon missing: %s", id)
 	}
+}
+
+// CreateFile creates a file in the base directory
+func (env *TestEnvironment) CreateFile(name, content string) string {
+	path := filepath.Join(env.BaseDir, name)
+	err := os.MkdirAll(filepath.Dir(path), 0755)
+	if err != nil {
+		env.t.Fatalf("Failed to create directories for %s: %v", name, err)
+	}
+	err = os.WriteFile(path, []byte(content), 0644)
+	if err != nil {
+		env.t.Fatalf("Failed to write file %s: %v", name, err)
+	}
+	// Trigger file event if extension is supported
+	ext := filepath.Ext(name)
+	env.AssetsHandler.NewFileEvent(name, ext, path, "create")
+	return path
 }

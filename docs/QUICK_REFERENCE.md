@@ -15,7 +15,7 @@ import "github.com/tinywasm/assetmin"
 
 config := &assetmin.Config{
     OutputDir:       "web/public",
-    Logger:          func(msg ...any) { log.Println(msg...) },
+    RootDir:         ".",
     AppName:         "MyApp",
     AssetsURLPrefix: "/assets/",
 }
@@ -95,21 +95,17 @@ exts := am.SupportedExtensions() // [".js", ".css", ".svg", ".html"]
 files := am.UnobservedFiles()
 ```
 
-## WASM Integration
+## JavaScript Standalone Files (Service Workers)
 
 ```go
-config := &assetmin.Config{
-    OutputDir: "web/public",
-    GetSSRClientInitJS: func() (string, error) {
-        return `console.log("WASM init");`, nil
-    },
+func (c *MyComp) RenderJS() []*js.Script {
+    return []*js.Script{
+        {Name: "sw.js", Content: `// service worker`},
+        {Name: "", Content: `// bundled code`},
+    }
 }
-
-am := assetmin.NewAssetMin(config)
-
-// When WASM binary changes
-am.RefreshWasmAssets()
 ```
+Standalone files are served at `/name` and written to `<OutputDir>/name`.
 
 ## Development vs Production
 
@@ -142,9 +138,9 @@ func main() {
 ## Asset Types
 
 ### JavaScript
-- Output: `script.js`
+- Global bundle: `script.js`
+- Standalone files supported (e.g. `sw.js`)
 - Automatic `'use strict'` directive
-- Runtime initializer prepended
 - Minified via tdewolff/minify
 
 ### CSS

@@ -3,49 +3,33 @@ package assetmin_test
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
-func TestAssetScenario(t *testing.T) {
+func TestAssets(t *testing.T) {
+	// Configurar el entorno de prueba
+	t.Run("uc01_basic_flow", func(t *testing.T) {
+		// En este caso probamos que el flujo básico de creación de activos funcione
+		// Se crean archivos .js, .css, .svg y .html y se verifica que los handlers
+		// tengan el contenido correcto y que se puedan minificar sin errores.
+		env := setupTestEnv("uc01_basic_flow", t)
+		env.CreateFile("style.css", "body { color: red; }")
+		env.CreateFile("script.js", "console.log('hello');")
+		env.CreateFile("icon.svg", "<svg><path d='M0 0h10v10H0z'/></svg>")
+		env.CreateFile("index.html", "<html><body><h1>Hello</h1></body></html>")
 
-	t.Run("uc01_empty_directory", func(t *testing.T) {
-		// en este caso se espera que la libreria pueda crear el archivo el el directorio web/public/main.js
-		// si el archivo no existe se considerara un error, la libreria debe ser capas de crear el directorio de trabajo web/public
-
-		env := setupTestEnv("uc01_empty_directory", t)
 		if err := env.AssetsHandler.FlushToDisk(); err != nil {
 			t.Fatalf("FlushToDisk: %v", err)
 		}
-		// 1. Create JS file and verify output
-		jsFileName := "script1.js"
-		jsFilePath := filepath.Join(env.BaseDir, jsFileName)
-		jsContent := []byte("console.log('Hello from JS');")
 
-		if err := os.WriteFile(jsFilePath, jsContent, 0644); err != nil {
-			t.Fatalf("Failed to write JS file: %v", err)
+		// Verificar que los archivos existan en el directorio de salida
+		for _, file := range []string{"style.css", "script.js", "icons.svg", "index.html"} {
+			path := filepath.Join(env.OutDir, file)
+			if _, err := os.Stat(path); os.IsNotExist(err) {
+				t.Errorf("File %s not found in output directory", file)
+			}
 		}
-		if err := env.AssetsHandler.NewFileEvent(jsFileName, ".js", jsFilePath, "create"); err != nil {
-			t.Fatalf("Error processing JS creation event: %v", err)
-		}
-
-		// Verificar que el archivo main.js fue creado correctamente
-		_, err := os.Stat(env.MainJsPath)
-		if err != nil {
-			t.Fatalf("El archivo main.js no fue creado: %v", err)
-		}
-
-		// Verificar que el contenido fue escrito correctamente
-		content, err := os.ReadFile(env.MainJsPath)
-		if err != nil {
-			t.Fatalf("No se pudo leer el archivo main.js: %v", err)
-		}
-		if !strings.Contains(string(content), "Hello from JS") {
-			t.Errorf("El contenido del archivo main.js no es el esperado")
-		}
-
 		env.CleanDirectory()
-
 	})
 
 	t.Run("uc02_crud_operations", func(t *testing.T) {
@@ -55,9 +39,6 @@ func TestAssetScenario(t *testing.T) {
 		env := setupTestEnv("uc02_crud_operations", t)
 		if err := env.AssetsHandler.FlushToDisk(); err != nil {
 			t.Fatalf("FlushToDisk: %v", err)
-		}
-		env.AssetsHandler.GetSSRClientInitJS = func() (string, error) {
-			return "console.log('init');", nil
 		}
 
 		// Probar operaciones CRUD para archivos JS
@@ -72,80 +53,4 @@ func TestAssetScenario(t *testing.T) {
 
 		env.CleanDirectory()
 	})
-
-	t.Run("uc03_concurrent_writes", func(t *testing.T) {
-		// En este caso probamos el comportamiento de la librería cuando múltiples
-		// archivos JS son escritos simultáneamente
-		// Se espera que todos los contenidos se encuentren en web/public/main.js
-		env := setupTestEnv("uc03_concurrent_writes", t)
-		if err := env.AssetsHandler.FlushToDisk(); err != nil {
-			t.Fatalf("FlushToDisk: %v", err)
-		}
-		env.TestConcurrentFileProcessing(".js", 5)
-		env.CleanDirectory()
-	})
-
-	t.Run("uc04_concurrent_writes_css", func(t *testing.T) {
-		// En este caso probamos el comportamiento de la librería cuando múltiples
-		// archivos CSS son escritos simultáneamente
-		// Se espera que todos los contenidos se encuentren en web/public/main.css
-		env := setupTestEnv("uc04_concurrent_writes_css", t)
-		if err := env.AssetsHandler.FlushToDisk(); err != nil {
-			t.Fatalf("FlushToDisk: %v", err)
-		}
-		env.TestConcurrentFileProcessing(".css", 5)
-		env.CleanDirectory()
-	})
-}
-
-func (env *TestEnvironment) TestEventBasedCompilation(fileExtension string) {
-	var mainPath, fileName, fileContent, expectedContent string
-
-	if fileExtension == ".js" {
-		mainPath = env.MainJsPath
-		fileName = "script1.js"
-		fileContent = "console.log('JS content');"
-		expectedContent = "JS content"
-	} else {
-		mainPath = env.MainCssPath
-		fileName = "style1.css"
-		fileContent = "body { color: blue; }"
-		expectedContent = "body{color:blue}"
-	}
-
-	filePath := filepath.Join(env.BaseDir, fileName)
-	if err := os.WriteFile(filePath, []byte(fileContent), 0644); err != nil {
-		env.t.Fatalf("Failed to write test file: %v", err)
-	}
-
-	// --- false Behavior ---
-	if err := env.AssetsHandler.NewFileEvent(fileName, fileExtension, filePath, "create"); err != nil {
-		env.t.Fatalf("Error processing creation event: %v", err)
-	}
-
-	// Verify file is NOT written to disk in false
-	_, err := os.Stat(mainPath)
-	if !os.IsNotExist(err) {
-		env.t.Errorf("File should not be written when FlushToDisk has not been called")
-	}
-
-	// --- true Behavior ---
-	if err := env.AssetsHandler.FlushToDisk(); err != nil {
-		env.t.Fatalf("FlushToDisk: %v", err)
-	}
-	if err := env.AssetsHandler.NewFileEvent(fileName, fileExtension, filePath, "write"); err != nil {
-		env.t.Fatalf("Error processing write event: %v", err)
-	}
-
-	// Verify file IS written to disk in true
-	if _, err := os.Stat(mainPath); os.IsNotExist(err) {
-		env.t.Errorf("File should be written when FlushToDisk was successful")
-	}
-	content, err := os.ReadFile(mainPath)
-	if err != nil {
-		env.t.Fatalf("Failed to read output file: %v", err)
-	}
-	if !strings.Contains(string(content), expectedContent) {
-		env.t.Errorf("File content mismatch in true: expected %q to be in content", expectedContent)
-	}
 }

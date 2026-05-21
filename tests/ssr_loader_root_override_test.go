@@ -20,7 +20,7 @@ func TestLoader_CssDefaultWins_NoAppRoot(t *testing.T) {
 	am := env.AssetsHandler
 
 	// Mock component registration logic instead of full module discovery
-	am.UpdateSSRModuleInSlot("tinywasm/css", ":root{--css:1;}", "", "", nil, "open")
+	am.UpdateSSRModuleInSlot("tinywasm/css", ":root{--css:1;}", nil, "", nil, "open")
 
 	output, _ := am.GetMinifiedCSS()
 	if !strings.Contains(string(output), "--css:1") {
@@ -33,7 +33,7 @@ func TestLoader_AppFullyReplacesCss(t *testing.T) {
 	am := assetmin.NewAssetMin(&assetmin.Config{})
 
 	// Mock extraction and slot routing
-	am.UpdateSSRModuleInSlot("tinywasm/css", ":root{--css:1;}", "", "", nil, "open")
+	am.UpdateSSRModuleInSlot("tinywasm/css", ":root{--css:1;}", nil, "", nil, "open")
 
 	// App override via RegisterComponents which simulates app root registration
 	am.RegisterComponents(&mockRootProvider{css: ":root{--app:1;}"})
@@ -53,7 +53,7 @@ func TestLoader_ThirdPartyIgnored(t *testing.T) {
 	am := env.AssetsHandler
 
 	// Simulate discovery results: Framework wins if no app root
-	am.UpdateSSRModuleInSlot("tinywasm/css", ":root{--css:1;}", "", "", nil, "open")
+	am.UpdateSSRModuleInSlot("tinywasm/css", ":root{--css:1;}", nil, "", nil, "open")
 
 	// Third party attempts to provide RootCSS but it should be ignored by routeAssets logic.
 	// Since we are mocking with UpdateSSRModuleInSlot, we just prove that

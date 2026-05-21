@@ -35,10 +35,13 @@ Routed to the `middle` slot. Use this for component-scoped styles, NOT for `:roo
 
 ### JavaScript
 ```go
+import "github.com/tinywasm/js"
+
 type jsProvider interface {
-    RenderJS() string
+    RenderJS() []*js.Script
 }
 ```
+Scripts with an empty `Name` are bundled into the global `script.js`. Scripts with a non-empty `Name` (e.g., `"sw.js"`) are served as standalone files at the root of the public directory.
 
 ### SVG icons
 ```go
@@ -57,7 +60,7 @@ type htmlProvider interface {
 ## Conventions
 
 ### Automatic Discovery
-For automatic module discovery via `ssr.go`, `assetmin` automatically detects the receiver type of your methods and instantiates the component. You no longer need to export an `SSRInstance()` function.
+For automatic module discovery via `css.go`, `js.go`, `svg.go`, `html.go`, or `ssr.go`, `assetmin` automatically detects the receiver type of your methods and instantiates the component. You no longer need to export an `SSRInstance()` function.
 
 ### Typed CSS
 Both `RootCSS()` and `RenderCSS()` use the concrete type `*css.Stylesheet` from the `github.com/tinywasm/css` library. This ensures type safety and allows the use of Go-based CSS DSLs. The extractor and `RegisterComponents` call `.String()` on these objects to get the raw CSS.
@@ -66,6 +69,6 @@ Both `RootCSS()` and `RenderCSS()` use the concrete type `*css.Stylesheet` from 
 
 | Need | Mechanism |
 |---|---|
-| Assets shipped with a Go module | `ssr.go` declarations (extracted via compile-and-invoke) |
+| Assets shipped with a Go module | `css.go`, `js.go`, etc. declarations (extracted via compile-and-invoke) |
 | Dynamic content built from struct fields or runtime config | `RegisterComponents` |
 | Custom theme generated at startup (e.g., from a config file) | `RegisterComponents` with `rootCssProvider` |

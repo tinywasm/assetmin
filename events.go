@@ -144,22 +144,6 @@ func (c *AssetMin) UnobservedFiles() []string {
 
 func (c *AssetMin) startCodeJS() (out string, err error) {
 	out = "'use strict';"
-
-	if c.GetSSRClientInitJS == nil {
-		return out, nil
-	}
-
-	js, err := c.GetSSRClientInitJS() // wasm js code
-	if err != nil {
-		return "", errors.New("startCodeJS " + err.Error())
-	}
-
-	// Remove any leading 'use strict' in the initializer to avoid duplication.
-	// The initializer comes from GetRuntimeInitializerJS and doesn't go through
-	// UpdateFileContentInMemory, so we need to clean it here.
-	clean := stripLeadingUseStrict([]byte(js))
-	out += string(clean)
-
 	return
 }
 

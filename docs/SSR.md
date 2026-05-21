@@ -10,7 +10,7 @@ The extraction happens once per unique set of component file hashes (cached), th
 
 ## Asset Declaration (Contract)
 
-A module exposes its assets by adding an `ssr.go` file in its package root:
+A module exposes its assets by adding one or more of the following files in its package root: `css.go`, `js.go`, `svg.go`, `html.go`. The legacy name `ssr.go` is also supported. All must have `//go:build !wasm`.
 
 ```go
 //go:build !wasm
@@ -20,29 +20,42 @@ package mypkg
 import (
     _ "embed"
     "github.com/tinywasm/css"
+    "github.com/tinywasm/js"
 )
+
+// --- In css.go ---
 
 //go:embed theme.css
 var rootCSSRaw string
 
-// Default `:root { … }` theme tokens. Routed to the `open` slot
-// (rendered first in <head>). At most one module wins this slot —
-// see "Single-override rule" below.
+// Default `:root { … }` theme tokens. Routed to the `open` slot.
 func RootCSS() *css.Stylesheet {
     return css.NewStylesheet(css.Raw(rootCSSRaw))
 }
 
-// Component-level CSS. Routed to the `middle` slot for dependencies
-// or to the `close` slot when this is the root project.
+// Component-level CSS. Routed to the `middle` slot for dependencies.
 func RenderCSS() *css.Stylesheet {
     return css.NewStylesheet(css.Rule(".my-widget", css.Decl("color", "red")))
 }
 
-// Component-level JS. Same slot routing as RenderCSS.
-func RenderJS() string { return `console.log("ready")` }
+// --- In js.go ---
+
+// Component-level JS.
+// - Empty Name: bundled into script.js.
+// - Non-empty Name: served as a standalone file (e.g. "sw.js").
+func RenderJS() []*js.Script {
+    return []*js.Script{
+        {Name: "", Content: `console.log("ready")`},
+        {Name: "sw.js", Content: `// service worker code`},
+    }
+}
+
+// --- In html.go ---
 
 // HTML fragment for SSR.
 func RenderHTML() string { return `<div class="my-widget"></div>` }
+
+// --- In svg.go ---
 
 // SVG icons collected into the global sprite sheet.
 func IconSvg() map[string]string {
@@ -56,7 +69,7 @@ func IconSvg() map[string]string {
 |---|---|---|---|
 | `RootCSS()` | `RootCSS` | `open` | Single-override (see below) |
 | `RenderCSS()` | `CSS` | `middle` (deps) / `close` (root project) | |
-| `RenderJS()` | `JS` | same as `RenderCSS` | |
+| `RenderJS()` | `JS` | same as `RenderCSS` / root | `Name != ""` goes to standalone |
 | `RenderHTML()` | `HTML` | same as `RenderCSS` | Only if publicly readable |
 | `IconSvg()` | `Icons` | sprite registry (no slot) | Keys are icon IDs |
 
@@ -84,7 +97,7 @@ func (b *Button) RenderCSS() *css.Stylesheet {
 }
 
 func (b *Button) RenderHTML() string { return `<button></button>` }
-func (b *Button) RenderJS() string   { return "" }
+func (b *Button) RenderJS() []*js.Script { return nil }
 func (b *Button) IconSvg() map[string]string { return nil }
 ```
 
@@ -95,7 +108,8 @@ func (b *Button) IconSvg() map[string]string { return nil }
 Asset methods may now return dynamic values — function calls, conditionals, Go DSL helpers, etc. — because they are evaluated by actual Go code execution, not static AST parsing. For example:
 
 - `RenderCSS()` and `RootCSS()` return typed `*css.Stylesheet` objects. The generated extractor calls `.String()` on the concrete type — no adapter interface exists.
-- `RenderHTML()` and `RenderJS()` remain strings but can be computed.
+- `RenderHTML()` remains a string.
+- `RenderJS()` returns `[]*js.Script`, allowing both bundled and standalone files.
 - `IconSvg()` returns a computed map.
 
 The compile-and-invoke mechanism removes the limitation of static evaluation.
@@ -110,7 +124,7 @@ The compile-and-invoke mechanism removes the limitation of static evaluation.
 
 The fallback module path is the unexported constant `cssModulePath = "tinywasm/css"` in `ssr_loader.go`.
 
-`RenderCSS()`, `RenderJS()`, `RenderHTML()`, and `IconSvg()` from third-party modules are NOT subject to single-override — they accumulate normally in the `middle` slot.
+`RenderCSS()`, `RenderJS()` (bundled), `RenderHTML()`, and `IconSvg()` from third-party modules are NOT subject to single-override — they accumulate normally in the `middle` slot. Standalone JS files from different modules with the same name are currently merged.
 
 ## Slot ordering in `<head>`
 
@@ -128,7 +142,7 @@ CSS cascade order: dependencies cannot override the root project; the root proje
 
 ## Automatic discovery
 
-When `Config.RootDir` points at the project root (where `go.mod` lives), `assetmin` runs `go list -m -json all` to enumerate every module the project transitively imports, then parses each candidate `ssr.go`.
+When `Config.RootDir` points at the project root (where `go.mod` lives), `assetmin` runs `go list -m -json all` to enumerate every module the project transitively imports, then parses each candidate (`css.go`, `js.go`, `svg.go`, `html.go`, `ssr.go`).
 
 ```go
 am := assetmin.NewAssetMin(&assetmin.Config{

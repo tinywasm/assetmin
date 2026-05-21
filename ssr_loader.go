@@ -235,7 +235,7 @@ func (c *AssetMin) ReloadSSRModule(moduleDir string) error {
 	if assets.CSS != "" {
 		c.refreshAsset(".css")
 	}
-	if assets.JS != "" {
+	if len(assets.JS) > 0 {
 		c.refreshAsset(".js")
 	}
 	if assets.HTML != "" {

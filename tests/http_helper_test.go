@@ -18,9 +18,6 @@ func newTestSetup(t *testing.T) *testSetup {
 
 	ac := &assetmin.Config{
 		OutputDir: outputDir,
-		GetSSRClientInitJS: func() (string, error) {
-			return "", nil
-		},
 	}
 
 	return &testSetup{

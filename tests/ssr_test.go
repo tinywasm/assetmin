@@ -28,9 +28,6 @@ func TestSSRModeDelegation(t *testing.T) {
 
 	ac :=  &assetmin.Config{
 		OutputDir: filepath.Join(tmpDir, "dist"),
-		GetSSRClientInitJS: func() (string, error) {
-			return "init();", nil // No init code needed for this test
-		},
 	}
 	am := assetmin.NewAssetMin(ac)
 
@@ -72,8 +69,10 @@ func TestSSRModeDelegation(t *testing.T) {
 			t.Fatal("expected SSR mode to be active after EnableSSRMode")
 		}
 
-		// .go file should trigger compilation
-		am.NewFileEvent("main.go", ".go", "/path/main.go", "write")
+		// Trigger event for a .go file
+		goPath := filepath.Join(tmpDir, "main.go")
+		_ = os.WriteFile(goPath, []byte("package main"), 0644)
+		_ = am.NewFileEvent("main.go", ".go", goPath, "write")
 
 		if !ssrCompileCalled {
 			t.Errorf("expected onSSRCompile to be called in SSR mode for .go file")
@@ -97,9 +96,6 @@ func TestSSRModeDelegation(t *testing.T) {
 		outputDir := filepath.Join(tmpDir, "ssr_disk_test")
 		ac := &assetmin.Config{
 			OutputDir: outputDir,
-			GetSSRClientInitJS: func() (string, error) {
-				return "console.log('init');", nil
-			},
 		}
 		am := assetmin.NewAssetMin(ac)
 

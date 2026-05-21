@@ -53,7 +53,6 @@ func RenderCSS() *cssSheet { return &cssSheet{} }
 	ac := &assetmin.Config{
 		RootDir:   root,
 		OutputDir: filepath.Join(root, "web", "public"),
-		GetSSRClientInitJS: func() (string, error) { return "", nil },
 	}
 	am := assetmin.NewAssetMin(ac)
 
@@ -106,7 +105,6 @@ func RenderCSS() *cssSheet {
 	ac := &assetmin.Config{
 		RootDir:   root,
 		OutputDir: filepath.Join(root, "web", "public"),
-		GetSSRClientInitJS: func() (string, error) { return "", nil },
 	}
 	am := assetmin.NewAssetMin(ac)
 
