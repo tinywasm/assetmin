@@ -1,27 +1,14 @@
 package assetmin
 
 import (
-	"bytes"
-	"encoding/json"
-	"os/exec"
 	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/tinywasm/fmt"
 )
 
 // cssModulePath is the module path that provides the default `:root` theme
-// (all canonical design tokens). The root project may declare its own RootCSS()
-// to fully replace it.
 const cssModulePath = "tinywasm/css"
-
-// Module representa la salida de `go list -m -json all`
-type Module struct {
-	Path string
-	Dir  string
-	Main bool
-}
 
 // LoadSSRModules descubre todos los módulos e inyecta sus assets (asíncrono).
 func (c *AssetMin) LoadSSRModules() {
@@ -35,128 +22,26 @@ func (c *AssetMin) ScheduleSSRLoad() {
 		defer c.ssrLoading.Done()
 		c.mu.Lock()
 		defer c.mu.Unlock()
-		_ = c.loadSSRModulesLocked()
+
+		// 1) assets de texto/svg vía el extractor SSR inyectado:
+		if c.ssrExtractor != nil {
+			if all, err := c.ssrExtractor.ExtractAll(); err == nil {
+				for _, a := range all {
+					c.routeAssets(a, a.IsRoot, a.IsFramework)
+				}
+			} else {
+				c.Logger("SSR ExtractAll error:", err)
+			}
+		}
+		// 2) imágenes vía el ImageProcessor inyectado:
+		if c.imageProcessor != nil {
+			if err := c.imageProcessor.LoadImages(); err != nil {
+				c.Logger("image load error:", err)
+			}
+		}
+
+		c.resolveAndApplyRootCSS()
 	}()
-}
-
-// loadSSRModulesLocked descubre todos los módulos e inyecta sus assets.
-// Debe llamarse con el mutex c.mu bloqueado.
-func (c *AssetMin) loadSSRModulesLocked() error {
-	var modules []Module
-	var listFn = c.listModulesFn
-	if listFn == nil {
-		listFn = func(rootDir string) ([]string, error) {
-			cmd := exec.Command("go", "list", "-m", "-json", "all")
-			cmd.Dir = rootDir
-			out, err := cmd.Output()
-			if err != nil {
-				return nil, err
-			}
-
-			var mods []Module
-			dec := json.NewDecoder(bytes.NewReader(out))
-			for dec.More() {
-				var m Module
-				if err := dec.Decode(&m); err != nil {
-					return nil, err
-				}
-				mods = append(mods, m)
-			}
-
-			// Sort modules for deterministic order
-			sort.Slice(mods, func(i, j int) bool {
-				return mods[i].Path < mods[j].Path
-			})
-
-			return nil, nil // Not used when we use modules directly
-		}
-	}
-
-	// We need a way to get the module list even if listFn is provided for testing
-	if c.listModulesFn != nil {
-		dirs, err := c.listModulesFn(c.RootDir)
-		if err == nil {
-			for _, d := range dirs {
-				modules = append(modules, Module{
-					Path: filepath.Base(d), // Best effort
-					Dir:  d,
-				})
-			}
-			// Special case for our tests: if it's "module", let's fix the path to match import
-			for i, m := range modules {
-				if m.Path == "module" {
-					modules[i].Path = "other/module"
-				}
-				if m.Path == "css" {
-					modules[i].Path = "tinywasm/css"
-				}
-			}
-		}
-	} else {
-		cmd := exec.Command("go", "list", "-m", "-json", "all")
-		cmd.Dir = c.RootDir
-		out, err := cmd.Output()
-		if err == nil {
-			dec := json.NewDecoder(bytes.NewReader(out))
-			for dec.More() {
-				var m Module
-				if err := dec.Decode(&m); err == nil {
-					modules = append(modules, m)
-				}
-			}
-		}
-	}
-
-	// Scan project imports
-	importedPaths, err := c.scanner.ScanProjectImports(c.RootDir)
-	if err != nil {
-		c.Logger("ScanProjectImports error:", err)
-		// Fallback to empty if scan fails? Or return error?
-		importedPaths = make(map[string]bool)
-	}
-
-	for _, m := range modules {
-		if m.Dir == "" {
-			continue
-		}
-
-		// Always load exceptions
-		isFramework := fmt.Contains(m.Path, cssModulePath)
-		isRoot := isRootDir(m.Dir, c.RootDir)
-		alwaysLoad := isFramework || isRoot
-
-		if alwaysLoad {
-			if assets, err := extractSSRAssetsForModule(m, c.RootDir, modules, ""); err == nil {
-				c.routeAssets(assets, isRoot, isFramework)
-			}
-			// Even if root/framework has no ssr.go, we continue to check subpackages if any
-		}
-
-		// Selective load subpackages
-		subpackages := moduleSubpackagesUsed(m.Path, m.Dir, importedPaths)
-		for _, sub := range subpackages {
-			// If sub is "", it means the module root was imported.
-			// If we already loaded it via alwaysLoad, skip it to avoid duplication.
-			if sub == "" && alwaysLoad {
-				continue
-			}
-
-			subDir := filepath.Join(m.Dir, sub)
-			subM := Module{Path: m.Path, Dir: subDir} // Best effort for subpackages
-			if sub != "" {
-				subM.Path = m.Path + "/" + sub
-			}
-			if assets, err := extractSSRAssetsForModule(subM, c.RootDir, modules, ""); err == nil {
-				subIsFramework := fmt.Contains(subDir, cssModulePath)
-				subIsRoot := isRootDir(subDir, c.RootDir)
-				c.routeAssets(assets, subIsRoot, subIsFramework)
-			}
-		}
-	}
-
-	c.resolveAndApplyRootCSS()
-
-	return nil
 }
 
 func (c *AssetMin) routeAssets(a *SSRAssets, isRoot, isFramework bool) {
@@ -186,8 +71,6 @@ func (c *AssetMin) routeAssets(a *SSRAssets, isRoot, isFramework bool) {
 }
 
 func (c *AssetMin) resolveAndApplyRootCSS() {
-	// Single-winner replacement: project beats framework, framework beats nothing.
-	// Projects that want to extend framework tokens must do so explicitly in Go.
 	var entries []*ContentFile
 	if c.fromRoot != nil {
 		entries = append(entries, &ContentFile{Path: c.fromRoot.name, Content: []byte(c.fromRoot.css)})
@@ -201,47 +84,38 @@ func (c *AssetMin) resolveAndApplyRootCSS() {
 	c.mainStyleCssHandler.mu.Unlock()
 }
 
-func isRootDir(dir, rootDir string) bool {
-	if rootDir == "" {
-		return false
-	}
-	absDir, _ := filepath.Abs(dir)
-	absRoot, _ := filepath.Abs(rootDir)
-	return absDir == absRoot
-}
-
-// ReloadSSRModule re-extrae e inyecta los assets de un único módulo por su directorio.
 func (c *AssetMin) ReloadSSRModule(moduleDir string) error {
-	c.mu.Lock()
+	if c.ssrExtractor == nil {
+		return nil
+	}
 
-	assets, err := c.ExtractSSRAssetsWithContext(moduleDir)
-	if err != nil {
-		c.mu.Unlock()
+	a, err := c.ssrExtractor.ExtractModule(moduleDir)
+	if err != nil || a == nil {
 		return err
 	}
 
-	isFramework := fmt.Contains(moduleDir, cssModulePath)
-	isRoot := isRootDir(moduleDir, c.RootDir)
+	c.mu.Lock()
+	isFramework := a.IsFramework || fmt.Contains(moduleDir, cssModulePath)
+	isRoot := a.IsRoot || isRootDir(moduleDir, c.RootDir)
 
-	c.routeAssets(assets, isRoot, isFramework)
+	c.routeAssets(a, isRoot, isFramework)
 
-	if isFramework || isRoot || assets.RootCSS != "" {
+	if isFramework || isRoot || a.RootCSS != "" {
 		c.resolveAndApplyRootCSS()
 	}
-
 	c.mu.Unlock()
 
 	// Refresh assets only if they were actually changed/extracted
-	if assets.CSS != "" {
+	if a.CSS != "" {
 		c.refreshAsset(".css")
 	}
-	if len(assets.JS) > 0 {
+	if len(a.JS) > 0 {
 		c.refreshAsset(".js")
 	}
-	if assets.HTML != "" {
+	if a.HTML != "" {
 		c.refreshAsset(".html")
 	}
-	if len(assets.Icons) > 0 {
+	if a.Icons != nil {
 		c.refreshAsset(".svg")
 	}
 
@@ -260,4 +134,13 @@ func (c *AssetMin) WaitForSSRLoad(timeout time.Duration) {
 	case <-done:
 	case <-time.After(timeout):
 	}
+}
+
+func isRootDir(dir, rootDir string) bool {
+	if rootDir == "" {
+		return false
+	}
+	absDir, _ := filepath.Abs(dir)
+	absRoot, _ := filepath.Abs(rootDir)
+	return absDir == absRoot
 }

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/tinywasm/js"
 )
 
 func (c *AssetMin) UpdateFileContentInMemory(filePath, extension, event string, content []byte) (*asset, error) {
@@ -23,7 +25,7 @@ func (c *AssetMin) UpdateFileContentInMemory(filePath, extension, event string, 
 	case ".js":
 		// Remove a leading "use strict" directive from incoming files to avoid
 		// duplicating the directive which we add globally in startCodeJS.
-		file.Content = stripLeadingUseStrict(file.Content)
+		file.Content = js.StripLeadingUseStrict(file.Content)
 		err := c.mainJsHandler.UpdateContent(filePath, event, file)
 		return c.mainJsHandler, err
 
@@ -47,11 +49,14 @@ func (c *AssetMin) UpdateFileContentInMemory(filePath, extension, event string, 
 
 // event: create, remove, write, rename
 func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) error {
-	c.mu.Lock()
-
 	// In SSR mode, delegate to external server and return early
-	if c.isSSRMode() {
+	c.mu.Lock()
+	ssr := c.isSSRMode()
+	c.mu.Unlock()
+
+	if ssr {
 		if extension == ".go" {
+			c.mu.Lock()
 			fn := c.onSSRCompile
 			c.mu.Unlock()
 			if fn != nil {
@@ -64,14 +69,14 @@ func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) err
 		switch extension {
 		case ".css", ".js", ".svg", ".html":
 			dir := filepath.Dir(filePath)
-			c.mu.Unlock()
 			time.Sleep(20 * time.Millisecond) // Timing guard for OS file operations
 			_ = c.ReloadSSRModule(dir)        // Encapsulates refresh internally
 			return nil
 		}
-		c.mu.Unlock()
 		return nil
 	}
+
+	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	// Check if filePath matches any of our output paths to avoid infinite recursion
@@ -106,7 +111,11 @@ func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) err
 	}
 
 	if extension == ".svg" && filepath.Base(filePath) != c.faviconSvgHandler.fileOutputName {
-		return c.addIcon(fileName, string(content))
+		// Individual SVG files (not icons from Go modules) are treated as icons for the sprite
+		if err := c.addIcon(fileName, string(content)); err != nil {
+			return err
+		}
+		return c.processAsset(c.spriteSvgHandler)
 	}
 	fh, err := c.UpdateFileContentInMemory(filePath, extension, event, content) // Update contentMiddle
 	if err != nil {
@@ -135,15 +144,19 @@ func (c *AssetMin) processAsset(fh *asset) error {
 func (c *AssetMin) UnobservedFiles() []string {
 	// Only truly generated/merged files should be unobserved.
 	// index.html and favicon.svg are often user-editable.
-	return []string{
+	out := []string{
 		c.mainStyleCssHandler.outputPath,
 		c.mainJsHandler.outputPath,
 		c.spriteSvgHandler.outputPath,
 	}
+	if c.imageProcessor != nil {
+		out = append(out, c.imageProcessor.UnobservedFiles()...)
+	}
+	return out
 }
 
 func (c *AssetMin) startCodeJS() (out string, err error) {
-	out = "'use strict';"
+	out = js.UseStrictPrefix
 	return
 }
 

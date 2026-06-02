@@ -12,5 +12,9 @@ require (
 require (
 	github.com/tdewolff/parse/v2 v2.8.5 // indirect
 	github.com/tinywasm/context v0.0.18 // indirect
+	github.com/tinywasm/dom v0.10.1 // indirect
 	github.com/tinywasm/fetch v0.1.24 // indirect
+	github.com/tinywasm/html v0.0.3 // indirect
+	github.com/tinywasm/ssr v0.0.1 // indirect
+	github.com/tinywasm/svg v0.0.2 // indirect
 )

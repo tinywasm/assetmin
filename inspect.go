@@ -2,6 +2,9 @@ package assetmin
 
 import (
 	"strings"
+
+	"github.com/tinywasm/html"
+	"github.com/tinywasm/js"
 )
 
 // ContainsCSS checks if the CSS bundle contains the given substring.
@@ -16,7 +19,9 @@ func (c *AssetMin) ContainsJS(substr string) bool {
 
 // ContainsSVG checks if the SVG sprite contains the given substring.
 func (c *AssetMin) ContainsSVG(substr string) bool {
-	return c.spriteSvgHandler.containsContent(substr)
+	c.spriteMu.Lock()
+	defer c.spriteMu.Unlock()
+	return strings.Contains(c.masterSprite.String(), substr)
 }
 
 // ContainsHTML checks if the HTML bundle contains the given substring.
@@ -26,9 +31,9 @@ func (c *AssetMin) ContainsHTML(substr string) bool {
 
 // HasIcon checks if an icon with the given ID is registered.
 func (c *AssetMin) HasIcon(id string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.registeredIconIDs != nil && c.registeredIconIDs[id]
+	c.spriteMu.Lock()
+	defer c.spriteMu.Unlock()
+	return strings.Contains(c.masterSprite.String(), "id=\""+id+"\"") || strings.Contains(c.masterSprite.String(), "id='"+id+"'")
 }
 
 // GetMinifiedJS returns the minified content of the JS bundle.
@@ -78,29 +83,19 @@ func (c *AssetMin) IsSSRMode() bool {
 	return c.isSSRMode()
 }
 
-// TestOnly_ScanImports is for testing the import scanner.
-func (c *AssetMin) TestOnly_ScanImports() (map[string]bool, error) {
-	return c.scanner.ScanProjectImports(c.RootDir)
-}
-
-// TestOnly_ModuleSubpackagesUsed is for testing the subpackage matcher.
-func (c *AssetMin) TestOnly_ModuleSubpackagesUsed(modulePath, moduleDir string, importedPaths map[string]bool) []string {
-	return moduleSubpackagesUsed(modulePath, moduleDir, importedPaths)
-}
-
 // ParseExistingHtmlContent is a public wrapper for tests.
 func ParseExistingHtmlContent(content string) (openContent, closeContent string) {
 	return parseExistingHtmlContent(content)
 }
 
 // RewriteAssetUrls is a public wrapper for tests.
-func RewriteAssetUrls(html string, newRoot string) string {
-	return rewriteAssetUrls(html, newRoot)
+func RewriteAssetUrls(htmlStr string, newRoot string) string {
+	return html.RewriteAssetURLs(htmlStr, newRoot)
 }
 
 // StripLeadingUseStrict is a public wrapper for tests.
 func StripLeadingUseStrict(b []byte) []byte {
-	return stripLeadingUseStrict(b)
+	return js.StripLeadingUseStrict(b)
 }
 
 // GetInitCodeJS returns the init code for the JS bundle.
