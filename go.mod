@@ -8,7 +8,7 @@ require (
 	github.com/tinywasm/fmt v0.23.10
 	github.com/tinywasm/html v0.0.3
 	github.com/tinywasm/js v0.0.4
-	github.com/tinywasm/svg v0.0.3
+	github.com/tinywasm/svg v0.0.5
 )
 
 require (

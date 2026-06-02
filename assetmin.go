@@ -62,7 +62,7 @@ func NewAssetMin(ac *Config) *AssetMin {
 		minifyEnabled:     true,
 		standaloneJS:      make(map[string]*asset),
 		standaloneOwners:  make(map[string][]string),
-		masterSprite:      svg.New(),
+		masterSprite:      &svg.Sprite{},
 	}
 
 	if c.AppName == "" {

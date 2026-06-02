@@ -30,10 +30,8 @@ func (c *AssetMin) addIcon(id string, content string) error {
 	if strings.Contains(c.masterSprite.String(), "id=\""+id+"\"") || strings.Contains(c.masterSprite.String(), "id='"+id+"'") {
 		return fmt.Err("icon ID already registered:", id)
 	}
-	// Create a temporary sprite to parse the raw icon and then merge it
-	s := svg.New()
-	s.Add(id, content)
-	c.masterSprite.Merge(s)
+	// Add raw icon directly to master sprite
+	c.masterSprite.AddRaw(id, content)
 	c.spriteSvgHandler.InvalidateCache()
 	return nil
 }
