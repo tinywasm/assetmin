@@ -6,6 +6,7 @@ import (
 
 	"github.com/tinywasm/css"
 	"github.com/tinywasm/js"
+	"github.com/tinywasm/svg"
 	"slices"
 )
 
@@ -13,14 +14,14 @@ type rootCssProvider interface{ RootCSS() *css.Stylesheet }
 type cssProvider interface{ RenderCSS() *css.Stylesheet }
 type jsProvider interface{ RenderJS() []*js.Script }
 type htmlProvider interface{ RenderHTML() string }
-type iconProvider interface{ IconSvg() map[string]string }
+type svgProvider interface{ IconSvg() *svg.Sprite }
 
 // RegisterComponents registra structs que implementan las interfaces SSR.
 func (c *AssetMin) RegisterComponents(providers ...any) error {
 	for _, p := range providers {
 		var css, html string
 		var scripts []*js.Script
-		var icons map[string]string
+		var icons *svg.Sprite
 
 		if rp, ok := p.(rootCssProvider); ok {
 			rootCSS := rp.RootCSS().String()
@@ -41,8 +42,8 @@ func (c *AssetMin) RegisterComponents(providers ...any) error {
 		if hp, ok := p.(htmlProvider); ok {
 			html = hp.RenderHTML()
 		}
-		if ip, ok := p.(iconProvider); ok {
-			icons = ip.IconSvg()
+		if sp, ok := p.(svgProvider); ok {
+			icons = sp.IconSvg()
 		}
 
 		name := fmt.Sprintf("%T", p)
@@ -54,12 +55,12 @@ func (c *AssetMin) RegisterComponents(providers ...any) error {
 }
 
 // UpdateSSRModule inyecta o reemplaza los assets de un módulo por nombre en el slot por defecto (middle).
-func (c *AssetMin) UpdateSSRModule(name string, css string, scripts []*js.Script, html string, icons map[string]string) error {
+func (c *AssetMin) UpdateSSRModule(name string, css string, scripts []*js.Script, html string, icons *svg.Sprite) error {
 	return c.UpdateSSRModuleInSlot(name, css, scripts, html, icons, "middle")
 }
 
 // UpdateSSRModuleInSlot inyecta o reemplaza los assets de un módulo en el slot especificado.
-func (c *AssetMin) UpdateSSRModuleInSlot(name string, css string, scripts []*js.Script, html string, icons map[string]string, slot string) error {
+func (c *AssetMin) UpdateSSRModuleInSlot(name string, css string, scripts []*js.Script, html string, icons *svg.Sprite, slot string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.updateSSRModuleInSlot(name, css, scripts, html, icons, slot)
@@ -72,7 +73,7 @@ func validateStandaloneName(name string) error {
 	return nil
 }
 
-func (c *AssetMin) updateSSRModuleInSlot(name string, css string, scripts []*js.Script, html string, icons map[string]string, slot string) error {
+func (c *AssetMin) updateSSRModuleInSlot(name string, css string, scripts []*js.Script, html string, icons *svg.Sprite, slot string) error {
 	if css != "" {
 		c.mainStyleCssHandler.UpdateContentInSlot(name, "write", &ContentFile{Path: name, Content: []byte(css)}, slot)
 	}
@@ -121,8 +122,8 @@ func (c *AssetMin) updateSSRModuleInSlot(name string, css string, scripts []*js.
 	if html != "" {
 		c.indexHtmlHandler.UpdateContentInSlot(name, "write", &ContentFile{Path: name, Content: []byte(html)}, slot)
 	}
-	for id, svg := range icons {
-		c.addIcon(id, svg)
+	if icons != nil {
+		c.mergeSprite(icons)
 	}
 	return nil
 }

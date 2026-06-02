@@ -11,8 +11,9 @@ import (
 	"github.com/tdewolff/minify/v2/css"
 	"github.com/tdewolff/minify/v2/html"
 	"github.com/tdewolff/minify/v2/js"
-	"github.com/tdewolff/minify/v2/svg"
+	minifySvg "github.com/tdewolff/minify/v2/svg"
 	"github.com/tinywasm/fmt"
+	"github.com/tinywasm/svg"
 )
 
 type AssetMin struct {
@@ -29,15 +30,16 @@ type AssetMin struct {
 	allAssets           map[string]*asset // Keyed by outputPath - dedup
 	log                 func(message ...any)
 	onSSRCompile        func() error
-	registeredIconIDs   map[string]bool
-	listModulesFn       func(rootDir string) ([]string, error)
 	ssrLoading          sync.WaitGroup
-	scanner             *importScanner
 	minifyEnabled       bool
 	fromRoot            *rootCandidate
 	fromCss             *rootCandidate
 	standaloneJS        map[string]*asset
 	standaloneOwners    map[string][]string // module name -> list of standalone asset names (outputs)
+	imageProcessor      ImageProcessor
+	ssrExtractor        SSRExtractor
+	masterSprite        *svg.Sprite
+	spriteMu            sync.RWMutex
 }
 
 type rootCandidate struct {
@@ -57,11 +59,10 @@ func NewAssetMin(ac *Config) *AssetMin {
 	c := &AssetMin{
 		Config:            ac,
 		min:               minify.New(),
-		registeredIconIDs: make(map[string]bool),
-		scanner:           newImportScanner(),
 		minifyEnabled:     true,
 		standaloneJS:      make(map[string]*asset),
 		standaloneOwners:  make(map[string][]string),
+		masterSprite:      svg.New(),
 	}
 
 	if c.AppName == "" {
@@ -97,7 +98,7 @@ func NewAssetMin(ac *Config) *AssetMin {
 
 	c.min.AddFunc("text/css", css.Minify)
 	c.min.AddFuncRegexp(regexp.MustCompile("^(application|text)/(x-)?(java|ecma)script$"), js.Minify)
-	c.min.AddFunc("image/svg+xml", svg.Minify)
+	c.min.AddFunc("image/svg+xml", minifySvg.Minify)
 
 	c.mainJsHandler.initCode = c.startCodeJS
 
@@ -113,14 +114,15 @@ func NewAssetMin(ac *Config) *AssetMin {
 	// Link the Sprite Handler to the HTML Handler so the sprite is injected dynamically
 	// into the HTML body. This avoids manual injection in build scripts.
 	c.indexHtmlHandler.AddDynamicContent(func() []byte {
+		c.spriteMu.RLock()
+		defer c.spriteMu.RUnlock()
+		return []byte(c.masterSprite.String())
+	})
 
-		// Attempt to get the latest minified sprite content
-		content, err := c.spriteSvgHandler.GetMinifiedContent(c.min)
-		if err != nil {
-			c.Logger("Error getting sprite content for auto-injection:", err)
-			return nil
-		}
-		return content
+	c.spriteSvgHandler.AddDynamicContent(func() []byte {
+		c.spriteMu.RLock()
+		defer c.spriteMu.RUnlock()
+		return []byte(c.masterSprite.String())
 	})
 
 	return c
@@ -187,14 +189,6 @@ func (c *AssetMin) RefreshJSAssets() {
 	c.refreshAsset(".js")
 }
 
-// SetListModulesFn replaces the module discovery function.
-// Only for tests — allows injecting dummy directories without network.
-func (c *AssetMin) SetListModulesFn(fn func(rootDir string) ([]string, error)) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.listModulesFn = fn
-}
-
 // readGoModulePath extracts the module path from go.mod (e.g., "example.com/demo")
 func readGoModulePath(rootDir string) (string, error) {
 	gomodPath := filepath.Join(rootDir, "go.mod")
@@ -223,70 +217,4 @@ func findIndex(s string, substr string) int {
 		}
 	}
 	return -1
-}
-
-// ExtractSSRAssetsWithContext uses the AssetMin's listModulesFn (if set) when discovering modules.
-// This allows tests to mock module discovery without running actual go list commands.
-func (c *AssetMin) ExtractSSRAssetsWithContext(moduleDir string) (*SSRAssets, error) {
-	rootDir, err := findProjectRoot(moduleDir)
-	if err != nil {
-		return nil, fmt.Err("failed to find project root from", moduleDir, err)
-	}
-
-	// Check for any of the ssrSourceFiles
-	foundSSR := false
-	for _, f := range ssrSourceFiles {
-		if _, err := os.Stat(filepath.Join(moduleDir, f)); err == nil {
-			foundSSR = true
-			break
-		}
-	}
-	if !foundSSR {
-		return nil, fmt.Err("no SSR source files found in", moduleDir)
-	}
-
-	var modules []Module
-	if c.listModulesFn != nil {
-		dirs, err := c.listModulesFn(rootDir)
-		if err == nil {
-			for _, d := range dirs {
-				modules = append(modules, Module{
-					Path: filepath.Base(d),
-					Dir:  d,
-				})
-			}
-		}
-	}
-
-	if len(modules) == 0 {
-		var err error
-		modules, err = discoverModules(rootDir)
-		if err != nil {
-			modules = []Module{{Path: filepath.Base(moduleDir), Dir: moduleDir}}
-		}
-	}
-
-	var targetModule Module
-	found := false
-	for _, m := range modules {
-		if m.Dir == moduleDir {
-			targetModule = m
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		// Construct a proper import path by reading go.mod root and appending relative path
-		relPath, _ := filepath.Rel(rootDir, moduleDir)
-		importPath, _ := readGoModulePath(rootDir)
-		if importPath != "" && relPath != "." {
-			targetModule.Path = importPath + "/" + relPath
-		} else {
-			targetModule.Path = filepath.Base(moduleDir)
-		}
-		targetModule.Dir = moduleDir
-	}
-
-	return extractSSRAssetsForModule(targetModule, rootDir, modules, "")
 }

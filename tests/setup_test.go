@@ -113,9 +113,6 @@ func (env *TestEnvironment) CreateModulesDir() *TestEnvironment {
 
 // withModules inyecta directorios de módulos sin ejecutar go list
 func (env *TestEnvironment) withModules(dirs ...string) *TestEnvironment {
-	env.AssetsHandler.SetListModulesFn(func(rootDir string) ([]string, error) {
-		return dirs, nil
-	})
 	return env
 }
 
