@@ -218,3 +218,4 @@ func findIndex(s string, substr string) int {
 	}
 	return -1
 }
+// assetmin v0.5.0: updated for svg v0.0.5
