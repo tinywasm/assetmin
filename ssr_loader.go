@@ -16,30 +16,45 @@ func (c *AssetMin) LoadSSRModules() {
 }
 
 // ScheduleSSRLoad inicia la carga de módulos SSR en segundo plano de forma segura.
+//
+// El escaneo de archivos (ExtractAll / LoadImages) es IO lento y se ejecuta SIN
+// sostener c.mu. Sostener el lock durante la extracción bloqueaba el path
+// síncrono de Change()/UpdateSSRModule, que también necesita c.mu, provocando
+// que un cambio entrante quedara parado hasta que terminara todo el escaneo.
+// El lock se toma solo al final, para aplicar las mutaciones de estado compartido.
 func (c *AssetMin) ScheduleSSRLoad() {
 	c.ssrLoading.Add(1)
 	go func() {
 		defer c.ssrLoading.Done()
-		c.mu.Lock()
-		defer c.mu.Unlock()
 
-		// 1) assets de texto/svg vía el extractor SSR inyectado:
-		if c.ssrExtractor != nil {
-			if all, err := c.ssrExtractor.ExtractAll(); err == nil {
-				for _, a := range all {
-					c.routeAssets(a, a.IsRoot, a.IsFramework)
-				}
+		// Snapshot de las dependencias inyectadas bajo un lock breve.
+		c.mu.Lock()
+		ssrExtractor := c.ssrExtractor
+		imageProcessor := c.imageProcessor
+		c.mu.Unlock()
+
+		// 1) assets de texto/svg vía el extractor SSR inyectado (IO, sin lock):
+		var extracted []*SSRAssets
+		if ssrExtractor != nil {
+			if all, err := ssrExtractor.ExtractAll(); err == nil {
+				extracted = all
 			} else {
 				c.Logger("SSR ExtractAll error:", err)
 			}
 		}
-		// 2) imágenes vía el ImageProcessor inyectado:
-		if c.imageProcessor != nil {
-			if err := c.imageProcessor.LoadImages(); err != nil {
+		// 2) imágenes vía el ImageProcessor inyectado (IO, sin lock):
+		if imageProcessor != nil {
+			if err := imageProcessor.LoadImages(); err != nil {
 				c.Logger("image load error:", err)
 			}
 		}
 
+		// Aplicar mutaciones de estado compartido bajo el lock.
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		for _, a := range extracted {
+			c.routeAssets(a, a.IsRoot, a.IsFramework)
+		}
 		c.resolveAndApplyRootCSS()
 	}()
 }
