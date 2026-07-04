@@ -4,7 +4,7 @@ go 1.25.2
 
 require (
 	github.com/tdewolff/minify/v2 v2.24.8
-	github.com/tinywasm/css v0.1.2
+	github.com/tinywasm/css v0.1.3
 	github.com/tinywasm/fmt v0.24.6
 	github.com/tinywasm/html v0.0.5
 	github.com/tinywasm/js v0.0.4
@@ -16,4 +16,5 @@ require (
 	github.com/tinywasm/context v0.0.18 // indirect
 	github.com/tinywasm/dom v0.11.2 // indirect
 	github.com/tinywasm/fetch v0.1.24 // indirect
+	github.com/tinywasm/router v0.1.1 // indirect
 )

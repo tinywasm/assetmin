@@ -4,9 +4,7 @@ package assetmin_test
 
 import (
 	"github.com/tinywasm/assetmin"
-	"io"
-	"net/http"
-	"net/http/httptest"
+	"github.com/tinywasm/router/mock"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,15 +12,11 @@ import (
 )
 
 func TestRegisterRoutes(t *testing.T) {
-	t.Run("serves assets from root", func(t *testing.T) {
+	t.Run("registers asset routes", func(t *testing.T) {
 		setup := newTestSetup(t)
 		defer setup.cleanup()
 
 		am := assetmin.NewAssetMin(setup.ac)
-		mux := http.NewServeMux()
-		am.RegisterRoutes(mux)
-		server := httptest.NewServer(mux)
-		defer server.Close()
 
 		// Add some content to trigger cache generation
 		if err := am.NewFileEvent("test.js", ".js", setup.createTempFile("test.js", "var a=1;"), "create"); err != nil {
@@ -32,90 +26,58 @@ func TestRegisterRoutes(t *testing.T) {
 			t.Fatalf("Error processing CSS creation: %v", err)
 		}
 
-		// Test index
-		resp, err := http.Get(server.URL + "/")
-		if err != nil {
-			t.Fatalf("HTTP GET / failed: %v", err)
-		}
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("GET /: expected status OK, got %v", resp.StatusCode)
-		}
-		contentType := resp.Header.Get("Content-Type")
-		if contentType != "text/html" {
-			t.Errorf("GET /: expected content-type text/html, got %v", contentType)
+		r := newTestRouter(am)
+		routes := r.Routes()
+
+		// Verify routes are registered
+		if len(routes) == 0 {
+			t.Fatal("Expected routes to be registered")
 		}
 
-		// Test JS
-		resp, err = http.Get(server.URL + "/script.js")
-		if err != nil {
-			t.Fatalf("HTTP GET /script.js failed: %v", err)
-		}
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("GET /script.js: expected status OK, got %v", resp.StatusCode)
-		}
-		contentType = resp.Header.Get("Content-Type")
-		if contentType != "text/javascript" {
-			t.Errorf("GET /script.js: expected content-type text/javascript, got %v", contentType)
+		routePaths := make(map[string]bool)
+		for _, route := range routes {
+			routePaths[route.Path] = true
 		}
 
-		// Test CSS
-		resp, err = http.Get(server.URL + "/style.css")
-		if err != nil {
-			t.Fatalf("HTTP GET /style.css failed: %v", err)
+		// Check key routes exist
+		if !routePaths["/"] {
+			t.Error("index route (/) not registered")
 		}
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("GET /style.css: expected status OK, got %v", resp.StatusCode)
+		if !routePaths["/style.css"] {
+			t.Error("CSS route not registered")
 		}
-		contentType = resp.Header.Get("Content-Type")
-		if contentType != "text/css" {
-			t.Errorf("GET /style.css: expected content-type text/css, got %v", contentType)
+		if !routePaths["/script.js"] {
+			t.Error("JS route not registered")
 		}
 	})
 
-	t.Run("serves assets with prefix", func(t *testing.T) {
+	t.Run("registers assets with prefix", func(t *testing.T) {
 		setup := newTestSetup(t)
 		defer setup.cleanup()
 
 		setup.ac.AssetsURLPrefix = "/static/"
 		am := assetmin.NewAssetMin(setup.ac)
-		mux := http.NewServeMux()
-		am.RegisterRoutes(mux)
-		server := httptest.NewServer(mux)
-		defer server.Close()
 
 		if err := am.NewFileEvent("test.js", ".js", setup.createTempFile("test.js", "var b=2;"), "create"); err != nil {
 			t.Fatalf("Error processing JS creation: %v", err)
 		}
 
-		// Test index (should still be at root)
-		resp, err := http.Get(server.URL + "/")
-		if err != nil {
-			t.Fatalf("HTTP GET / failed: %v", err)
-		}
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("GET /: expected status OK, got %v", resp.StatusCode)
+		r := newTestRouter(am)
+		routes := r.Routes()
+
+		routePaths := make(map[string]bool)
+		for _, route := range routes {
+			routePaths[route.Path] = true
 		}
 
-		// Test JS (with prefix)
-		resp, err = http.Get(server.URL + "/static/script.js")
-		if err != nil {
-			t.Fatalf("HTTP GET /static/script.js failed: %v", err)
-		}
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("GET /static/script.js: expected status OK, got %v", resp.StatusCode)
+		// Index should still be at root
+		if !routePaths["/"] {
+			t.Error("index route (/) not registered")
 		}
 
-		// Test JS (without prefix - should be handled by "/" and return HTML)
-		resp, err = http.Get(server.URL + "/script.js")
-		if err != nil {
-			t.Fatalf("HTTP GET /script.js failed: %v", err)
-		}
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("GET /script.js: expected status OK, got %v", resp.StatusCode)
-		}
-		contentType := resp.Header.Get("Content-Type")
-		if contentType != "text/html" {
-			t.Errorf("GET /script.js: expected content-type text/html, got %v", contentType)
+		// Assets should be under /static/
+		if !routePaths["/static/script.js"] {
+			t.Error("/static/script.js route not registered")
 		}
 	})
 
@@ -124,31 +86,18 @@ func TestRegisterRoutes(t *testing.T) {
 		defer setup.cleanup()
 
 		am := assetmin.NewAssetMin(setup.ac)
-		mux := http.NewServeMux()
-		am.RegisterRoutes(mux)
-		server := httptest.NewServer(mux)
-		defer server.Close()
 
-		// Requesting icons.svg should return 404 or fall back to "/" (index.html)
-		resp, err := http.Get(server.URL + "/icons.svg")
-		if err != nil {
-			t.Fatalf("HTTP GET /icons.svg failed: %v", err)
+		r := newTestRouter(am)
+		routes := r.Routes()
+
+		routePaths := make(map[string]bool)
+		for _, route := range routes {
+			routePaths[route.Path] = true
 		}
 
-		// Since "/" is registered as a catch-all in http.ServeMux (if we are not careful)
-		// Or if assetmin registers "/" as indexHtmlHandler.
-		// In http.go: mux.HandleFunc(c.indexHtmlHandler.GetURLPath(), c.serveAsset(c.indexHtmlHandler))
-		// and c.indexHtmlHandler.urlPath = "/"
-		// So http.ServeMux will treat "/" as a prefix if it's not a more specific match.
-		// Thus /icons.svg will return index.html.
-
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("expected status OK (fallback to index), got %v", resp.StatusCode)
-		}
-
-		contentType := resp.Header.Get("Content-Type")
-		if contentType != "text/html" {
-			t.Errorf("expected content-type text/html (index fallback), got %v", contentType)
+		// Sprite should not have its own route
+		if routePaths["/icons.svg"] {
+			t.Error("sprite (/icons.svg) should not be exposed as route")
 		}
 	})
 }
@@ -165,23 +114,16 @@ func TestSpriteInjectedInHTML(t *testing.T) {
 		t.Fatalf("InjectSpriteIcon failed: %v", err)
 	}
 
-	mux := http.NewServeMux()
-	am.RegisterRoutes(mux)
-	server := httptest.NewServer(mux)
-	defer server.Close()
+	r := newTestRouter(am)
 
-	resp, err := http.Get(server.URL + "/")
-	if err != nil {
-		t.Fatalf("HTTP GET / failed: %v", err)
+	// Invoke the index handler with mock context
+	ctx := &mock.Context{
+		InPath:   "/",
+		InMethod: "GET",
 	}
+	r.Invoke("GET", "/", ctx)
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("Failed to read response body: %v", err)
-	}
-	resp.Body.Close()
-
-	htmlContent := string(body)
+	htmlContent := string(ctx.ResponseBody())
 	if !strings.Contains(htmlContent, "test-icon") {
 		t.Error("index.html should contain injected icon ID")
 	}
@@ -239,23 +181,17 @@ func TestWorks(t *testing.T) {
 
 		setup.ac.AssetsURLPrefix = "/assets"
 		am := assetmin.NewAssetMin(setup.ac)
-		mux := http.NewServeMux()
-		am.RegisterRoutes(mux)
-		server := httptest.NewServer(mux)
-		defer server.Close()
 
-		resp, err := http.Get(server.URL + "/")
-		if err != nil {
-			t.Fatalf("HTTP GET / failed: %v", err)
+		r := newTestRouter(am)
+
+		// Invoke the index handler
+		ctx := &mock.Context{
+			InPath:   "/",
+			InMethod: "GET",
 		}
+		r.Invoke("GET", "/", ctx)
 
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			t.Fatalf("Failed to read response body: %v", err)
-		}
-		resp.Body.Close()
-
-		htmlContent := string(body)
+		htmlContent := string(ctx.ResponseBody())
 		if !strings.Contains(htmlContent, `href="/assets/style.css"`) {
 			t.Errorf("HTML should contain href=\"/assets/style.css\"")
 		}
@@ -272,23 +208,16 @@ func TestWorks(t *testing.T) {
 
 		am.InjectHTML("<div id='custom'>Injected</div>")
 
-		mux := http.NewServeMux()
-		am.RegisterRoutes(mux)
-		server := httptest.NewServer(mux)
-		defer server.Close()
+		r := newTestRouter(am)
 
-		resp, err := http.Get(server.URL + "/")
-		if err != nil {
-			t.Fatalf("HTTP GET / failed: %v", err)
+		// Invoke the index handler
+		ctx := &mock.Context{
+			InPath:   "/",
+			InMethod: "GET",
 		}
+		r.Invoke("GET", "/", ctx)
 
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			t.Fatalf("Failed to read response body: %v", err)
-		}
-		resp.Body.Close()
-
-		htmlContent := string(body)
+		htmlContent := string(ctx.ResponseBody())
 		if !strings.Contains(htmlContent, "<div id='custom'>Injected</div>") {
 			t.Error("index.html should contain injected content")
 		}

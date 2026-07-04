@@ -1,34 +1,36 @@
 package assetmin
 
 import (
-	"net/http"
 	"strings"
+
+	"github.com/tinywasm/router"
 )
 
-// RegisterRoutes registers the HTTP handlers for all assets.
-func (c *AssetMin) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc(c.indexHtmlHandler.GetURLPath(), c.serveAsset(c.indexHtmlHandler))
-	mux.HandleFunc(c.mainStyleCssHandler.GetURLPath(), c.serveAsset(c.mainStyleCssHandler))
-	mux.HandleFunc(c.mainJsHandler.GetURLPath(), c.serveAsset(c.mainJsHandler))
-	mux.HandleFunc(c.faviconSvgHandler.GetURLPath(), c.serveAsset(c.faviconSvgHandler))
+// RegisterRoutes registers the asset handlers on the router.
+func (c *AssetMin) RegisterRoutes(r router.Router) {
+	r.Get(c.indexHtmlHandler.GetURLPath(), c.serveAsset(c.indexHtmlHandler))
+	r.Get(c.mainStyleCssHandler.GetURLPath(), c.serveAsset(c.mainStyleCssHandler))
+	r.Get(c.mainJsHandler.GetURLPath(), c.serveAsset(c.mainJsHandler))
+	r.Get(c.faviconSvgHandler.GetURLPath(), c.serveAsset(c.faviconSvgHandler))
 
 	// Standalone JS assets
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, h := range c.standaloneJS {
-		mux.HandleFunc(h.GetURLPath(), c.serveAsset(h))
+		r.Get(h.GetURLPath(), c.serveAsset(h))
 	}
 }
 
-func (c *AssetMin) serveAsset(asset *asset) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (c *AssetMin) serveAsset(asset *asset) router.HandlerFunc {
+	return func(ctx router.Context) {
 		content, err := asset.GetMinifiedContent(c.min)
 		if err != nil {
-			http.Error(w, "Error getting minified content", http.StatusInternalServerError)
+			ctx.WriteStatus(500)
+			ctx.Write([]byte("Error getting minified content"))
 			return
 		}
 
-		w.Header().Set("Content-Type", asset.mediatype)
+		ctx.SetHeader("Content-Type", asset.mediatype)
 
 		// Robust check for HTML/JS regardless of charset
 		isDevMutableText := c.DevMode && strings.Contains(asset.mediatype, "text/")
@@ -36,12 +38,12 @@ func (c *AssetMin) serveAsset(asset *asset) http.HandlerFunc {
 			strings.Contains(asset.mediatype, "text/html") ||
 			strings.Contains(asset.mediatype, "application/javascript") ||
 			strings.Contains(asset.mediatype, "text/javascript") {
-			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			ctx.SetHeader("Cache-Control", "no-cache, no-store, must-revalidate")
 		} else {
 			// Production or non-text assets (images, fonts, etc.): Strong cache
-			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			ctx.SetHeader("Cache-Control", "public, max-age=31536000, immutable")
 		}
 
-		_, _ = w.Write(content)
+		ctx.Write(content)
 	}
 }

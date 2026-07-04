@@ -3,12 +3,10 @@
 package assetmin_test
 
 import (
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/tinywasm/assetmin"
+	"github.com/tinywasm/router/mock"
 	"os"
 	"path/filepath"
 )
@@ -37,28 +35,10 @@ func (s *testSetup) cleanup() {
 	// t.TempDir handles cleanup
 }
 
-func newTestMux(am *assetmin.AssetMin) *http.ServeMux {
-	mux := http.NewServeMux()
-	am.RegisterRoutes(mux)
-	return mux
-}
-
-func newTestServer(mux *http.ServeMux) *httptest.Server {
-	return httptest.NewServer(mux)
-}
-
-func doGet(t *testing.T, url string) (*http.Response, string) {
-	t.Helper()
-	resp, err := http.Get(url)
-	if err != nil {
-		t.Fatalf("GET %s: %v", url, err)
-	}
-	defer resp.Body.Close()
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("read body: %v", err)
-	}
-	return resp, string(b)
+func newTestRouter(am *assetmin.AssetMin) *mock.Router {
+	r := &mock.Router{}
+	am.RegisterRoutes(r)
+	return r
 }
 
 func (s *testSetup) createTempFile(name, content string) string {
