@@ -7,17 +7,21 @@ import (
 )
 
 // RegisterRoutes registers the asset handlers on the router.
+//
+// Every asset route is Public: the router is private by default, and a browser
+// fetching the page, its stylesheet, its bundle or its favicon has no identity —
+// a non-public asset route answers 403 Forbidden and nothing renders.
 func (c *AssetMin) RegisterRoutes(r router.Router) {
-	r.Get(c.indexHtmlHandler.GetURLPath(), c.serveAsset(c.indexHtmlHandler))
-	r.Get(c.mainStyleCssHandler.GetURLPath(), c.serveAsset(c.mainStyleCssHandler))
-	r.Get(c.mainJsHandler.GetURLPath(), c.serveAsset(c.mainJsHandler))
-	r.Get(c.faviconSvgHandler.GetURLPath(), c.serveAsset(c.faviconSvgHandler))
+	r.Get(c.indexHtmlHandler.GetURLPath(), c.serveAsset(c.indexHtmlHandler)).Public()
+	r.Get(c.mainStyleCssHandler.GetURLPath(), c.serveAsset(c.mainStyleCssHandler)).Public()
+	r.Get(c.mainJsHandler.GetURLPath(), c.serveAsset(c.mainJsHandler)).Public()
+	r.Get(c.faviconSvgHandler.GetURLPath(), c.serveAsset(c.faviconSvgHandler)).Public()
 
 	// Standalone JS assets
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, h := range c.standaloneJS {
-		r.Get(h.GetURLPath(), c.serveAsset(h))
+		r.Get(h.GetURLPath(), c.serveAsset(h)).Public()
 	}
 }
 
