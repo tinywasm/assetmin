@@ -12,16 +12,16 @@ import (
 // fetching the page, its stylesheet, its bundle or its favicon has no identity —
 // a non-public asset route answers 403 Forbidden and nothing renders.
 func (c *AssetMin) RegisterRoutes(r router.Router) {
-	r.Get(c.indexHtmlHandler.GetURLPath(), c.serveAsset(c.indexHtmlHandler)).Public()
-	r.Get(c.mainStyleCssHandler.GetURLPath(), c.serveAsset(c.mainStyleCssHandler)).Public()
-	r.Get(c.mainJsHandler.GetURLPath(), c.serveAsset(c.mainJsHandler)).Public()
-	r.Get(c.faviconSvgHandler.GetURLPath(), c.serveAsset(c.faviconSvgHandler)).Public()
+	r.PublicAsset(c.indexHtmlHandler.GetURLPath(), c.serveAsset(c.indexHtmlHandler))
+	r.PublicAsset(c.mainStyleCssHandler.GetURLPath(), c.serveAsset(c.mainStyleCssHandler))
+	r.PublicAsset(c.mainJsHandler.GetURLPath(), c.serveAsset(c.mainJsHandler))
+	r.PublicAsset(c.faviconSvgHandler.GetURLPath(), c.serveAsset(c.faviconSvgHandler))
 
 	// Standalone JS assets
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, h := range c.standaloneJS {
-		r.Get(h.GetURLPath(), c.serveAsset(h)).Public()
+		r.PublicAsset(h.GetURLPath(), c.serveAsset(h))
 	}
 }
 
