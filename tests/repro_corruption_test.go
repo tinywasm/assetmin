@@ -37,8 +37,8 @@ func TestReproCorruption(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < iterations; i++ {
-			am.InjectSpriteIcon("help", helpIcon)
-			am.InjectSpriteIcon("catalog", catalogIcon)
+			am.InjectSpriteIcon("help", helpIcon, "0 0 24 24")
+			am.InjectSpriteIcon("catalog", catalogIcon, "0 0 24 24")
 			time.Sleep(1 * time.Millisecond)
 		}
 	}()

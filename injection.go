@@ -35,11 +35,12 @@ func (c *AssetMin) InjectJS(name string, content string) {
 // AddIcon adds icons from providers to the bundle
 // InjectSpriteIcon adds an icon to the sprite bundle.
 // id: unique icon ID.
-// svg: raw SVG content.
-func (c *AssetMin) InjectSpriteIcon(id, svg string) error {
+// svg: raw SVG content (the symbol body, e.g. `<path d="..."/>`).
+// viewBox: the coordinate system the content was drawn in, e.g. "0 0 24 24".
+func (c *AssetMin) InjectSpriteIcon(id, svg, viewBox string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.addIcon(id, svg)
+	return c.addIcon(id, svg, viewBox)
 }
 
 // InjectHTML appends HTML to the body

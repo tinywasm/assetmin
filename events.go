@@ -112,7 +112,7 @@ func (c *AssetMin) NewFileEvent(fileName, extension, filePath, event string) err
 
 	if extension == ".svg" && filepath.Base(filePath) != c.faviconSvgHandler.fileOutputName {
 		// Individual SVG files (not icons from Go modules) are treated as icons for the sprite
-		if err := c.addIcon(fileName, string(content)); err != nil {
+		if err := c.addIconFile(fileName, string(content)); err != nil {
 			return err
 		}
 		return c.processAsset(c.spriteSvgHandler)

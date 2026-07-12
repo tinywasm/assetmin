@@ -71,8 +71,8 @@ func TestFlushToDisk_WritesAllRegisteredAssets(t *testing.T) {
 		"b.js":         "console.log('b');",
 		"theme/x.css":  ".x{color:red}",
 		"theme/y.css":  ".y{color:blue}",
-		"icons/i1.svg": `<svg id="i1"></svg>`,
-		"icons/i2.svg": `<svg id="i2"></svg>`,
+		"icons/i1.svg": `<svg id="i1" viewBox="0 0 16 16"><path d="M1 1h14v14H1z"/></svg>`,
+		"icons/i2.svg": `<svg id="i2" viewBox="0 0 16 16"><path d="M2 2h12v12H2z"/></svg>`,
 	}
 	for name, content := range files {
 		full := filepath.Join(env.BaseDir, name)

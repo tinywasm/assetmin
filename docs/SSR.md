@@ -165,6 +165,16 @@ am.ReloadSSRModule(moduleDir)
 
 The loader re-extracts the assets, re-evaluates the `RootCSS()` single-override (so an app that just gained or lost its own `RootCSS()` flips back and forth between its theme and framework's), and replaces in-memory bundle entries without duplication.
 
+### The `go.mod` main-input contract (do not "fix" it)
+
+`SSRFileWatcher` watches `.go` files yet declares `MainInputFileRelativePath() == "go.mod"`. That mismatch is deliberate.
+
+`devwatch` gates `.go` events through depfind ownership, but only for handlers whose main input is itself a `.go` file. Declaring a non-`.go` main input bypasses that gate, so this watcher receives *every* `.go` event and self-filters by basename (`css.go`, `js.go`, `svg.go`, `html.go` → re-extract; `image.go` → image processor; anything else → ignored).
+
+Ownership is meaningless for asset sources: nothing imports a component's `css.go`, so depfind can never call it "ours" and the event gets dropped — the symptom being *"editing `css.go` changes nothing until the daemon restarts"*. That was a real bug; both sides are now pinned by tests (`TestSSRWatcher_Contract` here, `TestHotReload_GoModMainInput_ReceivesGoEvents` in `devwatch`).
+
+assetmin does **not** import `devwatch` — only `tinywasm/app` wires the two together. The routing is tested here with a fake `SSRExtractor`; the gate itself is tested in `devwatch` with a stub handler.
+
 ## Manual registration
 
 If you have live struct instances implementing the SSR interfaces, register them directly:

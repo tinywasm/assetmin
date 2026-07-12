@@ -6,7 +6,7 @@ import (
 
 	"github.com/tinywasm/css"
 	"github.com/tinywasm/js"
-	"github.com/tinywasm/svg"
+	"github.com/tinywasm/svg/sprite"
 	"slices"
 )
 
@@ -14,14 +14,14 @@ type rootCssProvider interface{ RootCSS() *css.Stylesheet }
 type cssProvider interface{ RenderCSS() *css.Stylesheet }
 type jsProvider interface{ RenderJS() []*js.Script }
 type htmlProvider interface{ RenderHTML() string }
-type svgProvider interface{ IconSvg() *svg.Sprite }
+type svgProvider interface{ IconSvg() *sprite.Sprite }
 
 // RegisterComponents registra structs que implementan las interfaces SSR.
 func (c *AssetMin) RegisterComponents(providers ...any) error {
 	for _, p := range providers {
 		var css, html string
 		var scripts []*js.Script
-		var icons *svg.Sprite
+		var icons *sprite.Sprite
 
 		if rp, ok := p.(rootCssProvider); ok {
 			rootCSS := rp.RootCSS().String()
@@ -55,12 +55,12 @@ func (c *AssetMin) RegisterComponents(providers ...any) error {
 }
 
 // UpdateSSRModule inyecta o reemplaza los assets de un módulo por nombre en el slot por defecto (middle).
-func (c *AssetMin) UpdateSSRModule(name string, css string, scripts []*js.Script, html string, icons *svg.Sprite) error {
+func (c *AssetMin) UpdateSSRModule(name string, css string, scripts []*js.Script, html string, icons *sprite.Sprite) error {
 	return c.UpdateSSRModuleInSlot(name, css, scripts, html, icons, "middle")
 }
 
 // UpdateSSRModuleInSlot inyecta o reemplaza los assets de un módulo en el slot especificado.
-func (c *AssetMin) UpdateSSRModuleInSlot(name string, css string, scripts []*js.Script, html string, icons *svg.Sprite, slot string) error {
+func (c *AssetMin) UpdateSSRModuleInSlot(name string, css string, scripts []*js.Script, html string, icons *sprite.Sprite, slot string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.updateSSRModuleInSlot(name, css, scripts, html, icons, slot)
@@ -73,7 +73,7 @@ func validateStandaloneName(name string) error {
 	return nil
 }
 
-func (c *AssetMin) updateSSRModuleInSlot(name string, css string, scripts []*js.Script, html string, icons *svg.Sprite, slot string) error {
+func (c *AssetMin) updateSSRModuleInSlot(name string, css string, scripts []*js.Script, html string, icons *sprite.Sprite, slot string) error {
 	if css != "" {
 		c.mainStyleCssHandler.UpdateContentInSlot(name, "write", &ContentFile{Path: name, Content: []byte(css)}, slot)
 	}

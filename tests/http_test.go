@@ -109,7 +109,7 @@ func TestSpriteInjectedInHTML(t *testing.T) {
 	am := assetmin.NewAssetMin(setup.ac)
 
 	// Inject an icon
-	err := am.InjectSpriteIcon("test-icon", "<path d='M0 0h1'/>")
+	err := am.InjectSpriteIcon("test-icon", "<path d='M0 0h1'/>", "0 0 16 16")
 	if err != nil {
 		t.Fatalf("InjectSpriteIcon failed: %v", err)
 	}

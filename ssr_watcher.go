@@ -18,6 +18,19 @@ const imageAssetFile = "image.go"
 
 // SSRFileWatcher implements devwatch.FilesEventHandlers.
 // Watches .go events; routes only recognized asset-source files.
+//
+// CONTRACT WITH devwatch — do not "fix" the two declarations below:
+// devwatch gates .go events through depfind ownership, but ONLY for handlers
+// whose MainInputFileRelativePath is itself a .go file. This watcher declares
+// "go.mod" precisely so it bypasses that gate and receives EVERY .go event,
+// then self-filters by basename (ssrTextAssetFiles / imageAssetFile).
+//
+// Ownership is meaningless here: an asset source like a component's css.go is
+// not imported by anything, so depfind can never call it "ours" and the event
+// would be dropped — the symptom being "editing css.go changes nothing until
+// the daemon restarts". Both sides of this contract are pinned by tests:
+// TestSSRWatcher_Contract here, and TestHotReload_GoModMainInput_ReceivesGoEvents
+// in devwatch.
 type SSRFileWatcher struct {
 	am              *AssetMin
 	onBrowserReload func() error

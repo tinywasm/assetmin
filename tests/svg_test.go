@@ -59,7 +59,7 @@ func TestSvgSpriteGeneration(t *testing.T) {
 		am := env.AssetsHandler
 
 		// Manual injection of a symbol
-		err := am.InjectSpriteIcon("manual-icon", "<path d='M1 2h3'/>")
+		err := am.InjectSpriteIcon("manual-icon", "<path d='M1 2h3'/>", "0 0 16 16")
 		if err != nil {
 			t.Fatalf("InjectSpriteIcon failed: %v", err)
 		}
@@ -77,13 +77,13 @@ func TestSvgSpriteGeneration(t *testing.T) {
 		env := setupTestEnv("duplicate_icons", t)
 		am := env.AssetsHandler
 
-		err := am.InjectSpriteIcon("icon-1", "<path d='1'/>")
+		err := am.InjectSpriteIcon("icon-1", "<path d='1'/>", "0 0 16 16")
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		// Try to inject again with same ID
-		err = am.InjectSpriteIcon("icon-1", "<path d='2'/>")
+		err = am.InjectSpriteIcon("icon-1", "<path d='2'/>", "0 0 16 16")
 		if err == nil {
 			t.Error("Should have failed when injecting duplicate icon ID")
 		}

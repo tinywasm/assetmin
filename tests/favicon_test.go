@@ -40,7 +40,7 @@ func TestFaviconProcessing(t *testing.T) {
 		os.WriteFile(faviconPath, []byte(`<svg id="fav"><circle/></svg>`), 0644)
 
 		iconPath := filepath.Join(env.BaseDir, "home.svg")
-		os.WriteFile(iconPath, []byte(`<svg id="home-svg"><path/></svg>`), 0644)
+		os.WriteFile(iconPath, []byte(`<svg id="home-svg" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>`), 0644)
 
 		env.AssetsHandler.NewFileEvent("favicon.svg", ".svg", faviconPath, "create")
 		env.AssetsHandler.NewFileEvent("home.svg", ".svg", iconPath, "create")

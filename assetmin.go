@@ -13,7 +13,7 @@ import (
 	"github.com/tdewolff/minify/v2/js"
 	minifySvg "github.com/tdewolff/minify/v2/svg"
 	"github.com/tinywasm/fmt"
-	"github.com/tinywasm/svg"
+	"github.com/tinywasm/svg/sprite"
 )
 
 type AssetMin struct {
@@ -38,7 +38,7 @@ type AssetMin struct {
 	standaloneOwners    map[string][]string // module name -> list of standalone asset names (outputs)
 	imageProcessor      ImageProcessor
 	ssrExtractor        SSRExtractor
-	masterSprite        *svg.Sprite
+	masterSprite        *sprite.Sprite
 	spriteMu            sync.RWMutex
 }
 
@@ -62,7 +62,7 @@ func NewAssetMin(ac *Config) *AssetMin {
 		minifyEnabled:     true,
 		standaloneJS:      make(map[string]*asset),
 		standaloneOwners:  make(map[string][]string),
-		masterSprite:      &svg.Sprite{},
+		masterSprite:      sprite.NewSprite(),
 	}
 
 	if c.AppName == "" {

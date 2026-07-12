@@ -2,7 +2,7 @@ package assetmin
 
 import (
 	"github.com/tinywasm/js"
-	"github.com/tinywasm/svg"
+	"github.com/tinywasm/svg/sprite"
 )
 
 // SSRAssets es el DTO de assets crudos por módulo (lo produce tinywasm/ssr).
@@ -12,7 +12,7 @@ type SSRAssets struct {
 	CSS         string
 	JS          []*js.Script
 	HTML        string
-	Icons       *svg.Sprite
+	Icons       *sprite.Sprite
 	IsRoot      bool
 	IsFramework bool
 }

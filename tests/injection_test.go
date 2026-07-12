@@ -24,7 +24,7 @@ func TestAssetMin_AddAssets(t *testing.T) {
 	}
 
 	// Test AddIcon
-	err := am.InjectSpriteIcon("test-icon", "<path d='m'/>")
+	err := am.InjectSpriteIcon("test-icon", "<path d='m'/>", "0 0 16 16")
 	if err != nil {
 		t.Fatalf("AddIcon failed: %v", err)
 	}
