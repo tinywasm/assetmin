@@ -18,5 +18,5 @@ require (
 	github.com/tinywasm/dom v0.11.2 // indirect
 	github.com/tinywasm/fetch v0.1.24 // indirect
 	github.com/tinywasm/json v0.5.11 // indirect
-	github.com/tinywasm/model v0.0.8 // indirect
+	github.com/tinywasm/model v0.0.9 // indirect
 )
