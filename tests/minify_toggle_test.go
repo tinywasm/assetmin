@@ -16,18 +16,22 @@ func TestMinifyToggle(t *testing.T) {
 		OutputDir: t.TempDir(),
 	})
 
-	if am.Label() != "Minify: ON" {
-		t.Errorf("expected Minify: ON, got %s", am.Label())
+	if am.Label() != assetmin.MinifyLabel {
+		t.Errorf("expected Label() = %s, got %s", assetmin.MinifyLabel, am.Label())
 	}
 
-	am.Execute()
-	if am.Label() != "Minify: OFF" {
-		t.Errorf("expected Minify: OFF, got %s", am.Label())
+	if am.Value() != assetmin.MinifyOptionOn {
+		t.Errorf("expected Value() = %s, got %s", assetmin.MinifyOptionOn, am.Value())
 	}
 
-	am.Execute()
-	if am.Label() != "Minify: ON" {
-		t.Errorf("expected Minify: ON, got %s", am.Label())
+	am.Change(assetmin.MinifyOptionOff)
+	if am.Value() != assetmin.MinifyOptionOff {
+		t.Errorf("expected Value() = %s, got %s", assetmin.MinifyOptionOff, am.Value())
+	}
+
+	am.Change(assetmin.MinifyOptionOn)
+	if am.Value() != assetmin.MinifyOptionOn {
+		t.Errorf("expected Value() = %s, got %s", assetmin.MinifyOptionOn, am.Value())
 	}
 }
 
@@ -51,14 +55,14 @@ func TestMinifyToggle_RegeneratesAssets(t *testing.T) {
 	}
 
 	// Toggle OFF
-	am.Execute()
+	am.Change(assetmin.MinifyOptionOff)
 	unminified, _ := am.GetMinifiedCSS()
 	if !bytes.Contains(unminified, []byte("  ")) {
 		t.Error("CSS should NOT be minified after toggle")
 	}
 
 	// Toggle ON
-	am.Execute()
+	am.Change(assetmin.MinifyOptionOn)
 	minified2, _ := am.GetMinifiedCSS()
 	if bytes.Contains(minified2, []byte("  ")) {
 		t.Error("CSS should be minified again after toggle")
@@ -88,7 +92,7 @@ func TestMinifyToggle_DiskRewrite(t *testing.T) {
 	}
 
 	// Toggle OFF
-	am.Execute()
+	am.Change(assetmin.MinifyOptionOff)
 	content, _ = os.ReadFile(outputPath)
 	if !bytes.Contains(content, []byte("  ")) {
 		t.Error("Disk file should NOT be minified after toggle")
