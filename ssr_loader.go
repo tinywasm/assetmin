@@ -35,11 +35,28 @@ func (c *AssetMin) ScheduleSSRLoad() {
 
 		// 1) assets de texto/svg vía el extractor SSR inyectado (IO, sin lock):
 		var extracted []*SSRAssets
+		var extractSuccess bool
 		if ssrExtractor != nil {
-			if all, err := ssrExtractor.ExtractAll(); err == nil {
-				extracted = all
-			} else {
-				c.Logger("SSR ExtractAll error:", err)
+			var err error
+			attempts := 5
+			backoff := 200 * time.Millisecond
+			for i := 1; i <= attempts; i++ {
+				extracted, err = ssrExtractor.ExtractAll()
+				if err == nil {
+					extractSuccess = true
+					break
+				}
+				c.Logger("SSR ExtractAll attempt failed:", err)
+				if i < attempts {
+					time.Sleep(backoff)
+					backoff *= 2
+					if backoff > 3*time.Second {
+						backoff = 3 * time.Second
+					}
+				}
+			}
+			if err != nil {
+				c.Logger("FATAL: SSR ExtractAll failed permanently after", attempts, "attempts. Error:", err)
 			}
 		}
 		// 2) imágenes vía el ImageProcessor inyectado (IO, sin lock):
@@ -51,11 +68,18 @@ func (c *AssetMin) ScheduleSSRLoad() {
 
 		// Aplicar mutaciones de estado compartido bajo el lock.
 		c.mu.Lock()
-		defer c.mu.Unlock()
 		for _, a := range extracted {
 			c.routeAssets(a, a.IsRoot, a.IsFramework)
 		}
 		c.resolveAndApplyRootCSS()
+		c.mu.Unlock()
+
+		if ssrExtractor != nil && extractSuccess {
+			c.refreshAsset(".svg")
+			c.refreshAsset(".css")
+			c.refreshAsset(".js")
+			c.refreshAsset(".html")
+		}
 	}()
 }
 

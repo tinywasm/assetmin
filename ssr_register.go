@@ -122,8 +122,6 @@ func (c *AssetMin) updateSSRModuleInSlot(name string, css string, scripts []*js.
 	if html != "" {
 		c.indexHtmlHandler.UpdateContentInSlot(name, "write", &ContentFile{Path: name, Content: []byte(html)}, slot)
 	}
-	if icons != nil {
-		c.mergeSprite(icons)
-	}
+	c.setModuleSprite(name, icons)
 	return nil
 }
