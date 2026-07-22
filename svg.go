@@ -16,50 +16,11 @@ func NewFaviconSvgHandler(ac *Config, filename string) *asset {
 	return newAssetFile(filename, "image/svg+xml", ac, nil)
 }
 
-type symbolDef struct {
-	id   string
-	body string
-}
-
-func parseSymbols(s string) []symbolDef {
-	var defs []symbolDef
-	pos := 0
-	for {
-		startIdx := strings.Index(s[pos:], "<symbol")
-		if startIdx == -1 {
-			break
-		}
-		startIdx += pos
-		endIdx := strings.Index(s[startIdx:], "</symbol>")
-		if endIdx == -1 {
-			break
-		}
-		endIdx += startIdx + len("</symbol>")
-		symbolBlock := s[startIdx:endIdx]
-
-		id := ""
-		idStart := strings.Index(symbolBlock, "id=\"")
-		var quote byte = '"'
-		if idStart == -1 {
-			idStart = strings.Index(symbolBlock, "id='")
-			quote = '\''
-		}
-		if idStart != -1 {
-			idStart += len("id=\"")
-			idEnd := strings.IndexByte(symbolBlock[idStart:], quote)
-			if idEnd != -1 {
-				id = symbolBlock[idStart : idStart+idEnd]
-			}
-		}
-
-		if id != "" {
-			defs = append(defs, symbolDef{id: id, body: symbolBlock})
-		}
-		pos = endIdx
-	}
-	return defs
-}
-
+// renderSpriteNoLock combines every module's sprite into one, keeping the
+// first occurrence of a given icon id (sorted by module name for a stable,
+// deterministic order across scans). Reads typed Definitions via Icons() —
+// never re-parses Sprite.String()'s markup — so this stays correct
+// independent of how sprite.go formats its output.
 func (c *AssetMin) renderSpriteNoLock() string {
 	var keys []string
 	for k := range c.moduleSprites {
@@ -68,23 +29,29 @@ func (c *AssetMin) renderSpriteNoLock() string {
 	sort.Strings(keys)
 
 	seen := make(map[string]bool)
-	var finalSymbols []string
+	var deduped []sprite.Definition
 
 	for _, k := range keys {
 		s := c.moduleSprites[k]
 		if s == nil {
 			continue
 		}
-		defs := parseSymbols(s.String())
-		for _, def := range defs {
-			if !seen[def.id] {
-				seen[def.id] = true
-				finalSymbols = append(finalSymbols, def.body)
+		for _, def := range s.Icons() {
+			id := def.Icon.ID()
+			if !seen[id] {
+				seen[id] = true
+				deduped = append(deduped, def)
 			}
 		}
 	}
 
-	return "<svg aria-hidden=\"true\" style=\"display:none\">" + strings.Join(finalSymbols, "") + "</svg>"
+	out := sprite.NewSprite(deduped...).String()
+	if out == "" {
+		// Preserve the wrapper tag even with zero icons (matches the prior
+		// behavior consumers may depend on, e.g. a stable injection point).
+		out = `<svg aria-hidden="true" style="display:none"></svg>`
+	}
+	return out
 }
 
 func (c *AssetMin) renderSprite() string {
