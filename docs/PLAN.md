@@ -1,5 +1,7 @@
 ---
 PLAN: "fix: deterministic SSR sprite — module-keyed icons + reliable mass scan"
+STATUS: running
+SESSION: 567306067129696064
 ---
 
 # PLAN — deterministic SVG sprite assembly
