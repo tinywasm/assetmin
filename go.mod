@@ -9,7 +9,7 @@ require (
 	github.com/tinywasm/html v0.0.6
 	github.com/tinywasm/js v0.0.4
 	github.com/tinywasm/router v0.1.8
-	github.com/tinywasm/svg v0.1.3
+	github.com/tinywasm/svg v0.1.8
 	github.com/tinywasm/tui v0.1.1
 )
 
