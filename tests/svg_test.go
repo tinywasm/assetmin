@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tinywasm/svg/sprite"
 )
 
 // TestSvgSpriteGeneration verifica que la funcionalidad de generación de sprites SVG
@@ -90,6 +92,88 @@ func TestSvgSpriteGeneration(t *testing.T) {
 
 		if !strings.Contains(err.Error(), "already registered") {
 			t.Errorf("Error should mention 'already registered', got: %v", err)
+		}
+	})
+}
+
+func TestSvgSpriteRefactoring(t *testing.T) {
+	env := setupTestEnv("svg_sprite_refactoring", t)
+	am := env.AssetsHandler
+
+	// helper to create a sprite with a single icon
+	spriteWithIcon := func(id string) *sprite.Sprite {
+		s := sprite.NewSprite()
+		s.AddRaw(id, "<path d='M1 2'/>", "0 0 16 16")
+		return s
+	}
+
+	t.Run("Idempotent / no duplicates", func(t *testing.T) {
+		err := am.UpdateSSRModule("mod", "", nil, "", spriteWithIcon("dup"))
+		if err != nil {
+			t.Fatalf("UpdateSSRModule failed: %v", err)
+		}
+		err = am.UpdateSSRModule("mod", "", nil, "", spriteWithIcon("dup"))
+		if err != nil {
+			t.Fatalf("UpdateSSRModule failed second time: %v", err)
+		}
+
+		// Check the content via ContainsSVG
+		if !am.ContainsSVG("dup") {
+			t.Errorf("Expected sprite to contain 'dup' icon")
+		}
+
+		// Count occurrences of id="dup"
+		if err := am.RegenerateHTMLCache(); err != nil {
+			t.Fatalf("RegenerateHTMLCache failed: %v", err)
+		}
+		html := string(am.GetCachedHTML())
+		count := strings.Count(html, "id=\"dup\"")
+		if count != 1 {
+			t.Errorf("Expected id='dup' to appear exactly once, got %d", count)
+		}
+	})
+
+	t.Run("Cross-module union", func(t *testing.T) {
+		err := am.UpdateSSRModule("a", "", nil, "", spriteWithIcon("ia"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = am.UpdateSSRModule("b", "", nil, "", spriteWithIcon("ib"))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !am.ContainsSVG("ia") || !am.ContainsSVG("ib") {
+			t.Error("Expected both 'ia' and 'ib' icons to be present")
+		}
+
+		if err := am.RegenerateHTMLCache(); err != nil {
+			t.Fatal(err)
+		}
+		html := string(am.GetCachedHTML())
+		if strings.Count(html, "id=\"ia\"") != 1 || strings.Count(html, "id=\"ib\"") != 1 {
+			t.Errorf("Expected each icon to appear exactly once")
+		}
+	})
+
+	t.Run("Replace on re-extract", func(t *testing.T) {
+		err := am.UpdateSSRModule("mod2", "", nil, "", spriteWithIcon("old"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !am.ContainsSVG("old") {
+			t.Error("Expected 'old' icon to be present")
+		}
+
+		err = am.UpdateSSRModule("mod2", "", nil, "", spriteWithIcon("new"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if am.ContainsSVG("old") {
+			t.Error("Expected 'old' icon to be replaced/removed")
+		}
+		if !am.ContainsSVG("new") {
+			t.Error("Expected 'new' icon to be present")
 		}
 	})
 }

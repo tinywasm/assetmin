@@ -19,9 +19,7 @@ func (c *AssetMin) ContainsJS(substr string) bool {
 
 // ContainsSVG checks if the SVG sprite contains the given substring.
 func (c *AssetMin) ContainsSVG(substr string) bool {
-	c.spriteMu.Lock()
-	defer c.spriteMu.Unlock()
-	return strings.Contains(c.masterSprite.String(), substr)
+	return strings.Contains(c.renderSprite(), substr)
 }
 
 // ContainsHTML checks if the HTML bundle contains the given substring.
@@ -31,9 +29,8 @@ func (c *AssetMin) ContainsHTML(substr string) bool {
 
 // HasIcon checks if an icon with the given ID is registered.
 func (c *AssetMin) HasIcon(id string) bool {
-	c.spriteMu.Lock()
-	defer c.spriteMu.Unlock()
-	return strings.Contains(c.masterSprite.String(), "id=\""+id+"\"") || strings.Contains(c.masterSprite.String(), "id='"+id+"'")
+	current := c.renderSprite()
+	return strings.Contains(current, "id=\""+id+"\"") || strings.Contains(current, "id='"+id+"'")
 }
 
 // GetMinifiedJS returns the minified content of the JS bundle.

@@ -38,7 +38,7 @@ type AssetMin struct {
 	standaloneOwners    map[string][]string // module name -> list of standalone asset names (outputs)
 	imageProcessor      ImageProcessor
 	ssrExtractor        SSRExtractor
-	masterSprite        *sprite.Sprite
+	moduleSprites       map[string]*sprite.Sprite
 	spriteMu            sync.RWMutex
 }
 
@@ -62,7 +62,7 @@ func NewAssetMin(ac *Config) *AssetMin {
 		minifyEnabled:     true,
 		standaloneJS:      make(map[string]*asset),
 		standaloneOwners:  make(map[string][]string),
-		masterSprite:      sprite.NewSprite(),
+		moduleSprites:     make(map[string]*sprite.Sprite),
 	}
 
 	if c.AppName == "" {
@@ -114,15 +114,11 @@ func NewAssetMin(ac *Config) *AssetMin {
 	// Link the Sprite Handler to the HTML Handler so the sprite is injected dynamically
 	// into the HTML body. This avoids manual injection in build scripts.
 	c.indexHtmlHandler.AddDynamicContent(func() []byte {
-		c.spriteMu.RLock()
-		defer c.spriteMu.RUnlock()
-		return []byte(c.masterSprite.String())
+		return []byte(c.renderSprite())
 	})
 
 	c.spriteSvgHandler.AddDynamicContent(func() []byte {
-		c.spriteMu.RLock()
-		defer c.spriteMu.RUnlock()
-		return []byte(c.masterSprite.String())
+		return []byte(c.renderSprite())
 	})
 
 	return c

@@ -1,7 +1,8 @@
 ---
 PLAN: "fix: deterministic SSR sprite — module-keyed icons + reliable mass scan"
-STATUS: running
+STATUS: review
 SESSION: 567306067129696064
+PR: https://github.com/tinywasm/assetmin/pull/35
 ---
 
 # PLAN — deterministic SVG sprite assembly
