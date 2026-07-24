@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"sync"
 
 	"github.com/tdewolff/minify/v2"
@@ -124,8 +125,16 @@ func (h *asset) UpdateContentInSlot(filePath, event string, f *ContentFile, slot
 				}
 			}
 			if !replaced {
-				// No match found: append as new file
-				*filesToUpdate = append(*filesToUpdate, f)
+				// No match found: insert at the Path-sorted position so a slot's order
+				// depends only on the set of modules present, never on the order in
+				// which their registration events arrived (ScheduleSSRLoad's background
+				// scan and a watcher-driven reload can race on process boot).
+				idx := sort.Search(len(*filesToUpdate), func(i int) bool {
+					return (*filesToUpdate)[i].Path >= filePath
+				})
+				*filesToUpdate = append(*filesToUpdate, nil)
+				copy((*filesToUpdate)[idx+1:], (*filesToUpdate)[idx:])
+				(*filesToUpdate)[idx] = f
 			}
 		}
 	case "rename":

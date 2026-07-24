@@ -26,6 +26,7 @@ type AssetMin struct {
 	indexHtmlHandler    *asset
 	min                 *minify.M
 	ssrEnabled          bool              // SSR branch activation flag
+	initialLoadFailed   bool              // true tras agotar los reintentos de ExtractAll; el próximo evento SSR debe reintentar el escaneo completo
 	diskMirrored        bool              // If true, assets are being mirrored to disk
 	allAssets           map[string]*asset // Keyed by outputPath - dedup
 	log                 func(message ...any)

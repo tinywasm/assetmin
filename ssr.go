@@ -3,6 +3,7 @@ package assetmin
 import (
 	"bytes"
 	"fmt"
+	"sort"
 )
 
 // EnableSSRMode activates the SSR event branch unconditionally. Pure setter.
@@ -41,6 +42,8 @@ func (c *AssetMin) FlushToDisk() error {
 		})
 	}
 	c.mu.Unlock()
+
+	sort.Slice(snapshots, func(i, j int) bool { return snapshots[i].path < snapshots[j].path })
 
 	for _, s := range snapshots {
 		if err := FileWrite(s.path, *bytes.NewBuffer(s.content)); err != nil {
