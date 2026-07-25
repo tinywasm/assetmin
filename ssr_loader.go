@@ -57,6 +57,9 @@ func (c *AssetMin) ScheduleSSRLoad() {
 			}
 			if err != nil {
 				c.Logger("FATAL: SSR ExtractAll failed permanently after", attempts, "attempts. Error:", err)
+				c.mu.Lock()
+				c.initialLoadFailed = true
+				c.mu.Unlock()
 			}
 		}
 		// 2) imágenes vía el ImageProcessor inyectado (IO, sin lock):
@@ -124,6 +127,16 @@ func (c *AssetMin) resolveAndApplyRootCSS() {
 }
 
 func (c *AssetMin) ReloadSSRModule(moduleDir string) error {
+	c.mu.Lock()
+	retryFullScan := c.initialLoadFailed
+	if retryFullScan {
+		c.initialLoadFailed = false
+	}
+	c.mu.Unlock()
+	if retryFullScan {
+		c.ScheduleSSRLoad() // el arranque falló permanentemente; el código cambió (por eso llegó este evento) — reintentar todo
+	}
+
 	if c.ssrExtractor == nil {
 		return nil
 	}

@@ -73,7 +73,26 @@ func validateStandaloneName(name string) error {
 	return nil
 }
 
+// enforceSingleSlot retira cualquier entrada previa de `name` de los slots
+// DISTINTOS a `slot`, en los tres handlers de texto. Un módulo vive en
+// exactamente un slot a la vez — sin esto, dos llamadas para el mismo name
+// con slot distinto (p. ej. ExtractAll con IsRoot=true y luego un reload con
+// IsRoot=false para el mismo módulo) apilan un duplicado en vez de
+// reemplazar, y el duplicado viejo puede ganar la cascada CSS.
+func (c *AssetMin) enforceSingleSlot(name, slot string) {
+	for _, other := range [2]string{"middle", "close"} {
+		if other == slot {
+			continue
+		}
+		c.mainStyleCssHandler.UpdateContentInSlot(name, "remove", nil, other)
+		c.mainJsHandler.UpdateContentInSlot(name, "remove", nil, other)
+		c.indexHtmlHandler.UpdateContentInSlot(name, "remove", nil, other)
+	}
+}
+
 func (c *AssetMin) updateSSRModuleInSlot(name string, css string, scripts []*js.Script, html string, icons *sprite.Sprite, slot string) error {
+	c.enforceSingleSlot(name, slot) // NUEVO — primera línea
+
 	if css != "" {
 		c.mainStyleCssHandler.UpdateContentInSlot(name, "write", &ContentFile{Path: name, Content: []byte(css)}, slot)
 	}
