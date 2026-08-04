@@ -18,6 +18,7 @@ require (
 	github.com/tinywasm/context v0.0.18 // indirect
 	github.com/tinywasm/dom v0.13.1 // indirect
 	github.com/tinywasm/fetch v0.1.24 // indirect
+	github.com/tinywasm/font v0.0.3 // indirect
 	github.com/tinywasm/json v0.5.17 // indirect
 	github.com/tinywasm/model v0.1.2 // indirect
 )
