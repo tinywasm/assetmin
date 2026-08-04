@@ -1,8 +1,9 @@
 ---
 PLAN: "feat: Entregar las fuentes declaradas en config/fonts.go"
 TAG: v0.5.0
-STATUS: running
+STATUS: review
 SESSION: 79707023854572119
+PR: https://github.com/tinywasm/assetmin/pull/37
 ---
 ## Antes de escribir código: lee [CONSTRUCTION_HARNESS.md](CONSTRUCTION_HARNESS.md)
 
