@@ -1,8 +1,6 @@
 ---
 PLAN: "feat: Entregar las fuentes declaradas en config/fonts.go"
 TAG: v0.5.0
-STATUS: running
-SESSION: 79707023854572119
 ---
 ## Antes de escribir código: lee [CONSTRUCTION_HARNESS.md](CONSTRUCTION_HARNESS.md)
 
