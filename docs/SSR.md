@@ -1,6 +1,6 @@
 # SSR Module Asset Extraction & Loading
 
-`assetmin` automatically discovers Go modules in the project tree and extracts their assets — CSS, JS, HTML, SVG icons — routing them into the rendered `<head>`. Modules ship their own assets without ever importing `assetmin`; the contract is purely the function names declared in the asset source files (`css.go`, `js.go`, `svg.go`, `html.go`).
+`assetmin` automatically discovers Go modules in the project tree and extracts their assets — CSS, JS, HTML, SVG icons, fonts — routing them into the rendered `<head>`. Modules ship their own assets without ever importing `assetmin`; the contract is purely the function names declared in the asset source files (`css.go`, `js.go`, `svg.go`, `html.go`, `fonts.go`).
 
 ## Asset Extraction Mechanism
 
@@ -10,7 +10,7 @@ The extraction happens once per unique set of component file hashes (cached), th
 
 ## Asset Declaration (Contract)
 
-A module exposes its assets by adding one or more of the following files in its package root: `css.go`, `js.go`, `svg.go`, `html.go`. The legacy name `ssr.go` is also supported. All must have `//go:build !wasm`.
+A module exposes its assets by adding one or more of the following files in its package root: `css.go`, `js.go`, `svg.go`, `html.go`, `fonts.go`. The legacy name `ssr.go` is also supported. Asset producers that run only on the host carry `//go:build !wasm`; `fonts.go` is identity-only and has **no** build tag so the same declaration reaches WASM (PDF).
 
 ```go
 //go:build !wasm
@@ -61,6 +61,12 @@ func RenderHTML() string { return `<div class="my-widget"></div>` }
 func IconSvg() map[string]string {
     return map[string]string{"icon-id": `<svg>…</svg>`}
 }
+
+// --- In fonts.go (no build tag; root module only) ---
+
+func Fonts() font.Declaration {
+    return font.Declare("Roboto", "config/fonts")
+}
 ```
 
 ### Function-to-slot map
@@ -72,6 +78,7 @@ func IconSvg() map[string]string {
 | `RenderJS()` | `JS` | same as `RenderCSS` / root | `Name != ""` goes to standalone |
 | `RenderHTML()` | `HTML` | same as `RenderCSS` | Only if publicly readable |
 | `IconSvg()` | `Icons` | sprite registry (no slot) | Keys are icon IDs |
+| `Fonts()` | `Fonts` | copy faces + `@font-face` in CSS | Root only; non-root ignored with log |
 
 ### Automatic Receiver Detection
 
@@ -169,7 +176,7 @@ The loader re-extracts the assets, re-evaluates the `RootCSS()` single-override 
 
 `SSRFileWatcher` watches `.go` files yet declares `MainInputFileRelativePath() == "go.mod"`. That mismatch is deliberate.
 
-`devwatch` gates `.go` events through depfind ownership, but only for handlers whose main input is itself a `.go` file. Declaring a non-`.go` main input bypasses that gate, so this watcher receives *every* `.go` event and self-filters by basename (`css.go`, `js.go`, `svg.go`, `html.go` → re-extract; `image.go` → image processor; anything else → ignored).
+`devwatch` gates `.go` events through depfind ownership, but only for handlers whose main input is itself a `.go` file. Declaring a non-`.go` main input bypasses that gate, so this watcher receives *every* `.go` event and self-filters by basename (`css.go`, `js.go`, `svg.go`, `html.go`, `fonts.go` → re-extract; `image.go` → image processor; anything else → ignored).
 
 Ownership is meaningless for asset sources: nothing imports a component's `css.go`, so depfind can never call it "ours" and the event gets dropped — the symptom being *"editing `css.go` changes nothing until the daemon restarts"*. That was a real bug; both sides are now pinned by tests (`TestSSRWatcher_Contract` here, `TestHotReload_GoModMainInput_ReceivesGoEvents` in `devwatch`).
 

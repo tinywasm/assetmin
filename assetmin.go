@@ -12,7 +12,9 @@ import (
 	"github.com/tdewolff/minify/v2/html"
 	"github.com/tdewolff/minify/v2/js"
 	minifySvg "github.com/tdewolff/minify/v2/svg"
+	twcss "github.com/tinywasm/css"
 	"github.com/tinywasm/fmt"
+	"github.com/tinywasm/font"
 	"github.com/tinywasm/svg/sprite"
 )
 
@@ -41,6 +43,8 @@ type AssetMin struct {
 	ssrExtractor        SSRExtractor
 	moduleSprites       map[string]*sprite.Sprite
 	spriteMu            sync.RWMutex
+	fontsMu             sync.RWMutex
+	fonts               font.Declaration // root module only; zero-value = none
 }
 
 type rootCandidate struct {
@@ -120,6 +124,19 @@ func NewAssetMin(ac *Config) *AssetMin {
 
 	c.spriteSvgHandler.AddDynamicContent(func() []byte {
 		return []byte(c.renderSprite())
+	})
+
+	// @font-face from the root declaration. Read inside the closure so a later
+	// ReloadSSRModule updates the CSS without re-registering.
+	prefix := path.Join("/", ac.AssetsURLPrefix)
+	c.mainStyleCssHandler.AddDynamicContent(func() []byte {
+		c.fontsMu.RLock()
+		d := c.fonts
+		c.fontsMu.RUnlock()
+		if d.Family() == "" {
+			return nil
+		}
+		return []byte(twcss.FontFaces(d, prefix).String())
 	})
 
 	return c

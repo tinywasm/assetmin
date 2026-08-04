@@ -5,12 +5,14 @@ import (
 	"slices"
 )
 
-// ssrTextAssetFiles: archivos Go cuyo contenido se EXTRAE (string) y se fusiona/inyecta.
+// ssrTextAssetFiles: archivos Go cuyo contenido se EXTRAE y se fusiona/inyecta.
+// fonts.go is extracted by ssr (Fonts() → Declaration), not concatenated as text.
 var ssrTextAssetFiles = []string{
 	"css.go",
 	"js.go",
 	"svg.go",
 	"html.go",
+	"fonts.go",
 }
 
 // imageAssetFile: archivo Go que DECLARA imágenes a procesar (no se extrae string).

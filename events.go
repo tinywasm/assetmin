@@ -152,6 +152,7 @@ func (c *AssetMin) UnobservedFiles() []string {
 	if c.imageProcessor != nil {
 		out = append(out, c.imageProcessor.UnobservedFiles()...)
 	}
+	out = append(out, c.fontOutputPaths()...)
 	return out
 }
 

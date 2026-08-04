@@ -1,6 +1,7 @@
 package assetmin
 
 import (
+	"github.com/tinywasm/font"
 	"github.com/tinywasm/js"
 	"github.com/tinywasm/svg/sprite"
 )
@@ -13,6 +14,7 @@ type SSRAssets struct {
 	JS          []*js.Script
 	HTML        string
 	Icons       *sprite.Sprite
+	Fonts       font.Declaration // familia declarada por el módulo; cero-valor = ninguna
 	IsRoot      bool
 	IsFramework bool
 }

@@ -72,7 +72,12 @@ func (c *AssetMin) ScheduleSSRLoad() {
 		// Aplicar mutaciones de estado compartido bajo el lock.
 		c.mu.Lock()
 		for _, a := range extracted {
-			c.routeAssets(a, a.IsRoot, a.IsFramework)
+			if err := c.routeAssets(a, a.IsRoot, a.IsFramework); err != nil {
+				c.Logger("FATAL:", err)
+				c.initialLoadFailed = true
+				extractSuccess = false
+				break
+			}
 		}
 		c.resolveAndApplyRootCSS()
 		c.mu.Unlock()
@@ -86,7 +91,7 @@ func (c *AssetMin) ScheduleSSRLoad() {
 	}()
 }
 
-func (c *AssetMin) routeAssets(a *SSRAssets, isRoot, isFramework bool) {
+func (c *AssetMin) routeAssets(a *SSRAssets, isRoot, isFramework bool) error {
 	if isRoot {
 		c.fromRoot = nil
 	} else if isFramework {
@@ -104,12 +109,26 @@ func (c *AssetMin) routeAssets(a *SSRAssets, isRoot, isFramework bool) {
 		}
 	}
 
+	if a.Fonts.Family() != "" {
+		if isRoot {
+			if err := c.copyDeclaredFonts(a.Fonts); err != nil {
+				return err
+			}
+			c.setFonts(a.Fonts)
+		} else {
+			c.Logger("warning: module", a.ModuleName, "declares Fonts() but only the root project may; ignoring")
+		}
+	} else if isRoot {
+		c.setFonts(a.Fonts) // clear if root no longer declares fonts
+	}
+
 	slot := "middle"
 	if isRoot {
 		slot = "close"
 	}
 	// RootCSS deliberately NOT passed here — it has its own slot resolution above.
 	c.updateSSRModuleInSlot(a.ModuleName, a.CSS, a.JS, a.HTML, a.Icons, slot)
+	return nil
 }
 
 func (c *AssetMin) resolveAndApplyRootCSS() {
@@ -150,7 +169,11 @@ func (c *AssetMin) ReloadSSRModule(moduleDir string) error {
 	isFramework := a.IsFramework || fmt.Contains(moduleDir, cssModulePath)
 	isRoot := a.IsRoot || isRootDir(moduleDir, c.RootDir)
 
-	c.routeAssets(a, isRoot, isFramework)
+	err = c.routeAssets(a, isRoot, isFramework)
+	if err != nil {
+		c.mu.Unlock()
+		return err
+	}
 
 	if isFramework || isRoot || a.RootCSS != "" {
 		c.resolveAndApplyRootCSS()
@@ -158,7 +181,7 @@ func (c *AssetMin) ReloadSSRModule(moduleDir string) error {
 	c.mu.Unlock()
 
 	// Refresh assets only if they were actually changed/extracted
-	if a.CSS != "" {
+	if a.CSS != "" || a.Fonts.Family() != "" {
 		c.refreshAsset(".css")
 	}
 	if len(a.JS) > 0 {

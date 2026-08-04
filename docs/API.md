@@ -95,7 +95,7 @@ if err := am.FlushToDisk(); err != nil {
 ### SSR & Module Loading
 
 #### LoadSSRModules()
-Starts the discovery of all Go modules in the project tree, scans for asset source files (`css.go`, `js.go`, `svg.go`, `html.go`; legacy `ssr.go` also recognized), and extracts assets (CSS, JS, HTML, Icons) asynchronously via compile-and-invoke.
+Starts the discovery of all Go modules in the project tree, scans for asset source files (`css.go`, `js.go`, `svg.go`, `html.go`, `fonts.go`; legacy `ssr.go` also recognized), and extracts assets (CSS, JS, HTML, Icons, Fonts) asynchronously via compile-and-invoke.
 
 #### ReloadSSRModule(moduleDir string) error
 Re-extracts and updates assets for a single module directory. Used for hot reload.
@@ -129,11 +129,16 @@ Registers handlers:
 
 ### CSS
 - Output: `style.css`
-- Features: Merged bundles from all source files and SSR modules. Supports typed CSS via `github.com/tinywasm/css`.
+- Features: Merged bundles from all source files and SSR modules. Supports typed CSS via `github.com/tinywasm/css`. When the root module provides `Fonts()`, injects `@font-face` via `css.FontFaces`.
 
 ### SVG
 - **Sprite**: Delivered exclusively **inline** within `index.html`. No separate HTTP route.
 - **Favicon**: Served as `favicon.svg`.
+
+### Fonts
+- Input: `SSRAssets.Fonts` (`font.Declaration`) from the root module only.
+- Output: four `.ttf` files in `OutputDir`, named by `Family.Face(Style)`.
+- CSS: `@font-face` blocks in `style.css` with URLs under `AssetsURLPrefix`.
 
 ### HTML
 - Output: `index.html`

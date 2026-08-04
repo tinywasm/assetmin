@@ -136,7 +136,7 @@ func TestSSRWatcher_ReloadsAssetSource(t *testing.T) {
 // TestSSRWatcher_RoutesByBasename covers the self-filtering the whole design leans
 // on: devwatch sends EVERY .go event, so the watcher itself must decide.
 func TestSSRWatcher_RoutesByBasename(t *testing.T) {
-	assetSources := []string{"css.go", "js.go", "svg.go", "html.go"}
+	assetSources := []string{"css.go", "js.go", "svg.go", "html.go", "fonts.go"}
 
 	for _, name := range assetSources {
 		t.Run(name+" re-extracts the module", func(t *testing.T) {
