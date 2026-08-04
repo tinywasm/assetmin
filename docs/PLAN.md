@@ -113,29 +113,53 @@ adivinarla sería acoplarlo a una convención que no controla. Por eso `css` apo
 *familia* (`--font-sans`) y `assetmin` aporta la *entrega*.
 
 El gancho ya existe: `asset.dynamicContent []func() []byte` (`asset.go:26`, consumido en
-`:175`). El `@font-face` se inyecta ahí, en el asset CSS principal, con las URLs que
-`assetmin` acaba de decidir. Sin API nueva.
+`:175`). El `@font-face` se inyecta ahí, en el asset CSS principal.
 
-Una regla por cara, y **el formato es `truetype`**, no `woff2`:
+#### El texto de la regla lo produce `css.Raw`, no un `fmt.Sprintf` aquí
 
-```css
-@font-face {
-  font-family: "Roboto";
-  src: url("/assets/fonts/Roboto-Bold.ttf") format("truetype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
+`assetmin` **no escribe sintaxis CSS a mano.** `css/AGENTS.md §5` es explícita: la
+superficie pública de `tinywasm/css` para emitir CSS es `RootCSS`, `RenderCSS`,
+`Theme`/`Set`/`SetTheme`, el catálogo de tokens, `Stylesheet`, `NewStylesheet` y
+**`Raw`** — «that is the whole surface» — y «do not add a second way to do something
+that already has one». Un `@font-face{...}` armado con `fmt.Sprintf` en este paquete es
+exactamente esa segunda forma prohibida.
+
+Este módulo ya importa `tinywasm/css` (`go.mod`), así que no hay dependencia nueva que
+justificar. Cada pieza aporta lo que sólo ella sabe, y `css.Raw` es el único punto donde
+eso se convierte en texto:
+
+```go
+import "github.com/tinywasm/css"
+
+func fontFaceRule(family font.Family, style font.Style, url string) string {
+    weight, fontStyle := 400, "normal"
+    switch style {
+    case font.Bold:
+        weight = 700
+    case font.Italic:
+        fontStyle = "italic"
+    case font.BoldItalic:
+        weight, fontStyle = 700, "italic"
+    }
+    return css.NewStylesheet(css.Raw(Sprintf(
+        `@font-face{font-family:"%s";src:url("%s") format("truetype");`+
+            `font-weight:%d;font-style:%s;font-display:swap;}`,
+        family, url, weight, fontStyle,
+    ))).String()
 }
 ```
 
-El ecosistema sirve **un solo TTF por cara para web y PDF**: el documento se genera en el
-frontend, así que pide el mismo archivo que la página ya bajó — acierto de caché en vez de
-una segunda descarga. Escribir `format("woff2")` haría que el navegador rechace el
-archivo. La decisión y sus números están en
-`app-releases/docs/TYPOGRAPHY_MASTER_PLAN.md` §5.2.
+`assetmin` decide la URL (`AssetsURLPrefix` + `OutputDir`, algo que `css` no puede
+adivinar sin acoplarse a una convención que no controla) y el peso/estilo derivado de
+`font.Style`. `css.Raw` es lo único que convierte esos datos en sintaxis CSS válida —
+por eso la función vive aquí pero pasa por `css`, en vez de reinventar el
+`fmt.Sprintf("@font-face{...}")` suelto.
 
-Los cuatro `font-weight`/`font-style` salen de `font.Style`: `Regular` es 400/normal,
-`Bold` 700/normal, `Italic` 400/italic, `BoldItalic` 700/italic. No se inventan aquí.
+Una regla por cara. **El formato es `truetype`**, no `woff2`: el ecosistema sirve **un
+solo TTF por cara para web y PDF** — el documento se genera en el frontend, así que pide
+el mismo archivo que la página ya bajó, acierto de caché en vez de una segunda descarga.
+Escribir `format("woff2")` haría que el navegador rechace el archivo. La decisión y sus
+números están en `app-releases/docs/TYPOGRAPHY_MASTER_PLAN.md` §5.2.
 
 ### 3.3 El watcher enruta `config/fonts.go`
 
