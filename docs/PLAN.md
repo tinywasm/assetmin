@@ -1,5 +1,7 @@
-# PLAN — Entregar las fuentes declaradas en `font.go`
-
+---
+PLAN: "feat: Entregar las fuentes declaradas en config/fonts.go"
+TAG: v0.5.0
+---
 ## Antes de escribir código: lee [CONSTRUCTION_HARNESS.md](CONSTRUCTION_HARNESS.md)
 
 **Es vinculante, no orientativo.** Los principios que gobiernan este trabajo:
@@ -19,7 +21,7 @@ Depende de `tinywasm/font`, ya publicado (v0.0.3).
 `assetmin` no sabe entregar fuentes. No hay ruta por la que un `.ttf` llegue al navegador.
 
 La consecuencia no es sólo la falta: es que el hueco **aflora en la hoja**. La primera
-versión de `css/docs/PLAN.md` proponía que `tinywasm/css` embebiera el `.woff2` en base64
+versión de `css/docs/PLAN.md` proponía que `tinywasm/css` embebiera la fuente en base64
 dentro del `@font-face` para esquivarlo — exactamente lo que el harness llama *a fork with
 a friendlier name*. Ese plan quedó bloqueado esperando a este.
 
@@ -59,11 +61,11 @@ Dos categorías, no una. **Las fuentes son de la segunda.**
 ### 3.1 El contrato: `FontProcessor`, calcado de `ImageProcessor`
 
 ```go
-// FontProcessor procesa las fuentes declaradas en los font.go de los módulos.
+// FontProcessor procesa las fuentes declaradas en los config/fonts.go de los proyectos.
 // Implementado fuera de este paquete; inyectado por el composition root (app).
 type FontProcessor interface {
     LoadFonts() error                    // escaneo completo inicial (startup)
-    ReloadModule(moduleDir string) error // reproceso de un módulo (font.go cambió)
+    ReloadModule(moduleDir string) error // reproceso (config/fonts.go cambió)
     UnobservedFiles() []string           // outputs a excluir del watcher
 }
 
@@ -75,8 +77,26 @@ Misma forma que `ImageProcessor` (`image_processor.go`), misma inyección, misma
 desactivación por `nil`. Un lector que ya conoce el pipeline de imágenes no tiene nada nuevo
 que aprender — que es el punto del principio 4.
 
-**`assetmin` no implementa el procesador.** No subsetea, no convierte a WOFF2, no lee TTF.
-Declara el contrato y llama; la implementación vive fuera, como `tinywasm/image/min`.
+**`assetmin` no implementa el procesador.** No recorta fuentes ni interpreta el formato:
+copia archivos y emite una regla CSS. Declara el contrato y llama; la implementación vive
+fuera, como `tinywasm/image/min`.
+
+#### Decisión pendiente: dónde vive la implementación
+
+`ImageProcessor` lo implementa `tinywasm/image/min`, que **convierte** a WebP: trabajo
+real que justifica su propio paquete. El de fuentes sólo tiene que leer la declaración y
+copiar cuatro archivos — no convierte nada, porque web y PDF comparten el mismo TTF.
+
+Con tan poco cuerpo, las opciones son:
+
+| | Dónde | A favor | En contra |
+|---|---|---|---|
+| **A** | `tinywasm/font/assets` | junto al concern; `font` ya sabe derivar los nombres | la raíz de `font` es identidad pura sin build tag — el subpaquete leería archivos |
+| **B** | aquí mismo, sin contrato | es copiar archivos, no un pipeline | rompe la simetría con `ImageProcessor` y mete E/S de fuentes en `assetmin` |
+
+**A no viola la regla de `font`**: igual que `cmd/gofont`, un subpaquete que nadie importa
+desde el frontend no contamina lo que la raíz exporta. Es la recomendada, pero **decidir
+antes de escribir el contrato** — si al final es B, el `FontProcessor` sobra entero.
 
 ### 3.2 El `@font-face` lo emite `assetmin`, y sólo puede emitirlo él
 
@@ -94,7 +114,28 @@ El gancho ya existe: `asset.dynamicContent []func() []byte` (`asset.go:26`, cons
 `:175`). El `@font-face` se inyecta ahí, en el asset CSS principal, con las URLs que
 `assetmin` acaba de decidir. Sin API nueva.
 
-### 3.3 El watcher enruta `font.go`
+Una regla por cara, y **el formato es `truetype`**, no `woff2`:
+
+```css
+@font-face {
+  font-family: "Roboto";
+  src: url("/assets/fonts/Roboto-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+```
+
+El ecosistema sirve **un solo TTF por cara para web y PDF**: el documento se genera en el
+frontend, así que pide el mismo archivo que la página ya bajó — acierto de caché en vez de
+una segunda descarga. Escribir `format("woff2")` haría que el navegador rechace el
+archivo. La decisión y sus números están en
+`app-releases/docs/TYPOGRAPHY_MASTER_PLAN.md` §5.2.
+
+Los cuatro `font-weight`/`font-style` salen de `font.Style`: `Regular` es 400/normal,
+`Bold` 700/normal, `Italic` 400/italic, `BoldItalic` 700/italic. No se inventan aquí.
+
+### 3.3 El watcher enruta `config/fonts.go`
 
 Una constante junto a `imageAssetFile` en `ssr_watcher.go`, y su rama en el filtrado por
 basename. Fonts entra por la puerta de "declara assets a procesar", no por
@@ -102,13 +143,12 @@ basename. Fonts entra por la puerta de "declara assets a procesar", no por
 
 ### 3.4 Lo que NO se debe hacer
 
-**No añadir `.woff2` ni `.ttf` a `SupportedExtensions()`.** Esa lista enruta *fuentes de
+**No añadir `.ttf` a `SupportedExtensions()`.** Esa lista enruta *fuentes de
 contenido de texto* que se fusionan; un binario ahí entraría en el concatenador. Las
 imágenes tampoco están, y por la misma razón. Los archivos generados se excluyen del
 watcher vía `UnobservedFiles()`, igual que los `.webp`.
 
-*(Corrige lo que decía una versión previa de `css/docs/PLAN.md`, que mencionaba
-`SupportedExtensions()`.)*
+*(Corrige lo que decía una versión previa de `css/docs/PLAN.md`.)*
 
 ---
 
@@ -118,7 +158,7 @@ Las fuentes se parecen a `image.go` en una cosa y se diferencian en otra, y conv
 tenerlo claro antes de implementar.
 
 **Se parecen** en que declaran un asset binario a procesar, no un texto a fusionar. Por
-eso el contrato se calca de `ImageProcessor` y `font.go` entra por la puerta de
+eso el contrato se calca de `ImageProcessor` y `config/fonts.go` entra por la puerta de
 `imageAssetFile`, no por `ssrTextAssetFiles`.
 
 **Se diferencian** en que la identidad de la tipografía —qué familia— también la
@@ -134,16 +174,20 @@ Aquí sólo llegan los bytes: copiar las caras a la carpeta pública y emitir el
 
 ## 5. Verificación
 
-1. Un proyecto con `font.go` obtiene sus `.ttf` en `OutputDir` y servidos por HTTP.
+1. Un proyecto con `config/fonts.go` obtiene sus `.ttf` en `OutputDir` y servidos por HTTP.
 2. El CSS emitido contiene un `@font-face` cuya URL **resuelve** contra el servidor de
    desarrollo — comprobado con una petición real, no por inspección de la cadena.
 3. La página carga la fuente **sin ninguna petición a un host externo**. Es el requisito de
    producto: los despliegues objetivo no tienen internet.
-4. Editar `font.go` dispara el reproceso; el `.ttf` regenerado no vuelve a disparar el
-   watcher (`UnobservedFiles()`).
-5. Sin `FontProcessor` inyectado, `assetmin` funciona exactamente como hoy. La capacidad es
-   opcional; su ausencia no es un error.
-6. Un proyecto sin `font.go` no cambia en nada.
-7. `gotest`.
+4. Editar `config/fonts.go` dispara el reproceso; el `.ttf` **copiado** al directorio de
+   salida no vuelve a disparar el watcher (`UnobservedFiles()`), o se entra en bucle.
+5. El `@font-face` declara `format("truetype")`. Con `format("woff2")` el navegador
+   rechaza el archivo, y el fallo se ve como «la fuente no carga», no como un error.
+6. El mismo `.ttf` que sirve la página es el que `tinywasm/pdf` pide por `fetch` — una
+   sola descarga, comprobada en el panel de red del navegador.
+7. Sin `FontProcessor` inyectado, `assetmin` funciona exactamente como hoy. La capacidad
+   es opcional; su ausencia no es un error.
+8. Un proyecto sin `config/fonts.go` no cambia en nada.
+9. `gotest`.
 
 `docs/ASSETS.md` y `docs/API.md` se actualizan en el mismo commit.
