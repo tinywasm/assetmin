@@ -44,3 +44,19 @@ The wall-time of the dev loop (edit -> extract) is approximately 300-500ms depen
 ## Hot Reload
 
 `assetmin` integrates with the dev server to support hot reloading. When a local asset file (`css.go`, `js.go`, `svg.go`, `html.go`, `ssr.go`) changes, the changes are re-extracted and the in-memory cache is invalidated, providing instant updates without restarting the server.
+
+## Debt: document shell is duplicated, not owned by `tinywasm/html`
+
+`tinywasm/html` already exposes the document shell (`DocumentString`) and its
+comment states that assetmin writes that output to disk as `index.html`. That is
+not true today: `html.go` (`NewHtmlHandler`) and `templates/index_basic.html`
+each keep their own HTML copy.
+
+Reconciling the two is a larger change — it touches `contentOpen`/`contentClose`,
+`parseExistingHtmlContent`, and the bundle tests — and must not be folded into a
+one-line fix. Until then:
+
+- The viewport (and any other shared meta) must stay **byte-identical** in both
+  copies. `TestViewportContentIdenticalInBothShells` guards that.
+- If the value changes in `tinywasm/html`, change it here in the **same release**.
+  Two copies without that rule are two truths.

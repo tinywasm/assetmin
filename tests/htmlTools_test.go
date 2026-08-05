@@ -3,10 +3,18 @@
 package assetmin_test
 
 import (
-	"github.com/tinywasm/assetmin"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tinywasm/assetmin"
 )
+
+// Canonical viewport content. Both shells (html.go NewHtmlHandler and
+// templates/index_basic.html) must emit this exact string — see
+// docs/ARCHITECTURE.md "document shell is duplicated".
+const viewportContent = "width=device-width, initial-scale=1, viewport-fit=cover"
 
 func TestParseExistingHtmlContent(t *testing.T) {
 	t.Run("with_placeholder", func(t *testing.T) {
@@ -199,5 +207,86 @@ func TestDefaultHTMLContainsAppDiv(t *testing.T) {
 
 	if spriteIdx != -1 && appIdx != -1 && spriteIdx > appIdx {
 		t.Errorf("SVG sprite must appear before <div id=\"app\"> in the HTML")
+	}
+}
+
+// Without viewport-fit=cover, env(safe-area-inset-*) is 0px on every device
+// (including notched iPhones). The CSS tokens that consume those values then
+// compile and serve but do nothing — a silent layout failure.
+func TestDefaultHTMLContainsViewportFitCover(t *testing.T) {
+	env := setupTestEnv("html_viewport_fit", t)
+	am := env.AssetsHandler
+
+	if err := am.RegenerateHTMLCache(); err != nil {
+		t.Fatalf("RegenerateHTMLCache: %v", err)
+	}
+
+	html := string(am.GetCachedHTML())
+	// Minify may drop spaces inside the attribute; the token itself must survive.
+	if !strings.Contains(html, "viewport-fit=cover") {
+		t.Errorf("generated index.html must contain viewport-fit=cover\nGot:\n%s", html)
+	}
+}
+
+// While assetmin keeps two HTML shells (NewHtmlHandler + templates/index_basic.html),
+// their viewport content attribute must be the same string. Divergence is two
+// truths about the same document.
+func TestViewportContentIdenticalInBothShells(t *testing.T) {
+	root := moduleRoot(t)
+
+	handlerSrc, err := os.ReadFile(filepath.Join(root, "html.go"))
+	if err != nil {
+		t.Fatalf("read html.go: %v", err)
+	}
+	tmplSrc, err := os.ReadFile(filepath.Join(root, "templates", "index_basic.html"))
+	if err != nil {
+		t.Fatalf("read templates/index_basic.html: %v", err)
+	}
+
+	handlerVP := extractViewportContent(string(handlerSrc))
+	tmplVP := extractViewportContent(string(tmplSrc))
+	if handlerVP == "" {
+		t.Fatal("html.go: no viewport content attribute found")
+	}
+	if tmplVP == "" {
+		t.Fatal("templates/index_basic.html: no viewport content attribute found")
+	}
+	if handlerVP != tmplVP {
+		t.Errorf("viewport content diverged:\n  html.go:                     %q\n  templates/index_basic.html:  %q", handlerVP, tmplVP)
+	}
+	if handlerVP != viewportContent {
+		t.Errorf("viewport content = %q, want %q", handlerVP, viewportContent)
+	}
+}
+
+func extractViewportContent(src string) string {
+	const marker = `name="viewport" content="`
+	i := strings.Index(src, marker)
+	if i == -1 {
+		return ""
+	}
+	start := i + len(marker)
+	end := strings.Index(src[start:], `"`)
+	if end == -1 {
+		return ""
+	}
+	return src[start : start+end]
+}
+
+func moduleRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("go.mod not found walking up from working directory")
+		}
+		dir = parent
 	}
 }

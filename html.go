@@ -41,7 +41,7 @@ func NewHtmlHandler(ac *Config, outputName, cssURL, jsURL, faviconURL string) *a
 <html>
 <head>
 	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 	<title></title>
 	` + string(hh.generateFaviconLink()) + `
 	` + string(hh.generateStylesheetLink()) + `
