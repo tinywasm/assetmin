@@ -139,7 +139,12 @@ func (c *AssetMin) updateSSRModuleInSlot(name string, css string, scripts []*js.
 	c.standaloneOwners[name] = currentStandalone
 
 	if html != "" {
-		c.indexHtmlHandler.UpdateContentInSlot(name, "write", &ContentFile{Path: name, Content: []byte(html)}, slot)
+		// El HTML vive SIEMPRE en el slot "middle". El slot "close" es una
+		// decisión de cascada CSS/JS (el raíz se rutea ahí vía routeAssets);
+		// en el handler de HTML, contentClose arranca con `</div>` — un HTML
+		// en "close" quedaría fuera de #app, y para el módulo raíz incluso
+		// después de </html>.
+		c.indexHtmlHandler.UpdateContentInSlot(name, "write", &ContentFile{Path: name, Content: []byte(html)}, "middle")
 	}
 	c.setModuleSprite(name, icons)
 	return nil

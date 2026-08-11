@@ -124,6 +124,11 @@ func (c *AssetMin) routeAssets(a *SSRAssets, isRoot, isFramework bool) error {
 
 	slot := "middle"
 	if isRoot {
+		// El slot "close" para el raíz es una decisión de cascada CSS/JS
+		// (su CSS gana sobre el de los módulos). El HTML IGNORA el slot:
+		// updateSSRModuleInSlot lo rutea siempre a "middle", porque
+		// contentClose arranca con `</div>` — HTML en "close" quedaría fuera
+		// de #app (para el raíz, incluso después de </html>).
 		slot = "close"
 	}
 	// RootCSS deliberately NOT passed here — it has its own slot resolution above.

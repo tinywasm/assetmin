@@ -49,10 +49,23 @@ func NewHtmlHandler(ac *Config, outputName, cssURL, jsURL, faviconURL string) *a
 <body>`),
 	})
 
+	// El HTML de los módulos (contentMiddle) debe caer DENTRO del punto de
+	// montaje `#app`, para que el servidor sirva ya el markup renderizado y el
+	// primer Render() del WASM lo reemplace sin salto visual. El marcador de
+	// apertura NO va al final de contentOpen: los símbolos SVG (dynamicContent)
+	// se escriben entre contentOpen y contentMiddle, y deben quedar FUERA de
+	// #app — el primer Render() pisa innerHTML de #app y borraría los íconos.
+	// Se siembra como primera entrada de contentMiddle; Path "!app" ordena
+	// antes que cualquier nombre de módulo real (rutas de imports Go).
+	af.contentMiddle = append(af.contentMiddle, &ContentFile{
+		Path:    "!app",
+		Content: []byte(`<div id="app">`),
+	})
+
 	// default marcador de cierre index HTML
 	af.contentClose = append(af.contentClose, &ContentFile{
 		Path: "index-close.html",
-		Content: []byte(`<div id="app"></div>
+		Content: []byte(`</div>
 ` + string(hh.generateJavaScriptTag()) + `
 </body>
 </html>`),
